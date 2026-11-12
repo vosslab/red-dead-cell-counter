@@ -222,22 +222,31 @@ test("auto-tune compares a real crop before analyzing its batch", async ({ page 
 
 test("all supplied images finish through the browser worker", async ({ page }) => {
   test.setTimeout(240_000);
-  const names = ["A101.jpg", "A501.jpg", "C601.jpg", "E401.jpg", "F201.jpg", "H501.jpg"];
+  const names = [
+    "A101.jpg",
+    "A501.jpg",
+    "B301.jpg",
+    "C601.jpg",
+    "E401.jpg",
+    "F201.jpg",
+    "H1001.jpg",
+    "H501.jpg",
+  ];
   await page.goto("/");
   await page
     .getByLabel("Choose images")
     .setInputFiles(names.map((name) => path.join(process.cwd(), "IMAGES", name)));
-  await expect(page.getByRole("status")).toHaveText("6 images selected.");
+  await expect(page.getByRole("status")).toHaveText(`${names.length} images selected.`);
   const started = Date.now();
   await page.getByRole("button", { name: "Analyze images" }).click();
   await expect(page.getByRole("status")).toHaveText("Analysis complete.", { timeout: 230_000 });
-  await expect(page.locator("#rows tr")).toHaveCount(6);
+  await expect(page.locator("#rows tr")).toHaveCount(names.length);
   for (const name of names) {
     const row = page.locator("#rows tr").filter({ hasText: name });
     await expect(row).toContainText("Done");
     await expect(row.locator("td").nth(1)).toHaveText(/^\d+$/);
   }
-  await test.info().attach("six-real-images-timing.txt", {
+  await test.info().attach("eight-real-images-timing.txt", {
     body: `${Date.now() - started} ms\n`,
     contentType: "text/plain",
   });

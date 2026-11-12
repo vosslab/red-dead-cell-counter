@@ -30,6 +30,11 @@ const elements = {
   zoom: document.querySelector<HTMLInputElement>("#zoom")!,
   zoomValue: document.querySelector<HTMLElement>("#zoom-value")!,
   comparisonSummary: document.querySelector<HTMLElement>("#comparison-summary")!,
+  comparisonProgress: document.querySelector<HTMLProgressElement>("#comparison-progress")!,
+  comparisonProgressLabel: document.querySelector<HTMLElement>("#comparison-progress-label")!,
+  comparisonStatus: document.querySelector<HTMLElement>("#comparison-status")!,
+  comparisonRecommendation: document.querySelector<HTMLElement>("#comparison-recommendation")!,
+  comparisonApplied: document.querySelector<HTMLElement>("#comparison-applied")!,
   comparisonRows: document.querySelector<HTMLTableSectionElement>("#comparison-rows")!,
 };
 let results: ImageResult[] = [];
@@ -41,6 +46,7 @@ let pendingReject: ((reason: Error) => void) | undefined;
 let previewToken = 0;
 let comparisons: Comparison[] = [];
 let recommended: Comparison | undefined;
+let appliedComparison: Comparison | undefined;
 let comparisonFile: File | undefined;
 
 function settings(): Settings {
@@ -52,6 +58,29 @@ function settings(): Settings {
 }
 function setStatus(message: string): void {
   elements.status.textContent = message;
+}
+function comparisonSettingsText(input: Settings): string {
+  return `diameter ${input.diameter} px, k ${showNumber(input.k)}, threshold ${showNumber(input.threshold)}`;
+}
+function formatDuration(milliseconds: number): string {
+  if (milliseconds < 1_000) return `${Math.round(milliseconds)} ms`;
+  return `${(milliseconds / 1_000).toFixed(milliseconds < 10_000 ? 1 : 0)} s`;
+}
+function setComparisonProgress(completed: number, total: number): void {
+  elements.comparisonProgress.max = Math.max(1, total);
+  elements.comparisonProgress.value = Math.min(completed, total);
+  elements.comparisonProgressLabel.textContent = `Comparison progress: ${completed} of ${total} candidates complete`;
+}
+function setComparisonStatus(message: string): void {
+  elements.comparisonStatus.textContent = message;
+}
+function clearComparisonFeedback(message: string): void {
+  elements.comparisonSummary.textContent =
+    "Select an image, then compare nearby cell-size, k, and threshold settings. Count stability is a tuning heuristic, not an accuracy measurement.";
+  elements.comparisonRecommendation.textContent = "";
+  elements.comparisonApplied.textContent = "";
+  setComparisonProgress(0, 0);
+  setComparisonStatus(message);
 }
 function safeCell(text: string): string {
   return /^[\t\r\n ]*[=+\-@]/.test(text) ? `'${text}` : text;
@@ -80,7 +109,9 @@ function drawRows(): void {
       if (index !== selected) {
         comparisons = [];
         recommended = undefined;
+        appliedComparison = undefined;
         comparisonFile = undefined;
+        clearComparisonFeedback(`Comparison feedback cleared for ${result.file.name}.`);
         drawComparisons();
       }
       selected = index;
@@ -115,10 +146,29 @@ function drawComparisons(): void {
       cell(comparison.error ?? elapsed, comparison.error ? "error" : undefined),
     );
     const action = document.createElement("td");
+    action.className = "comparison-decision";
+    const labels: string[] = [];
+    if (comparison === recommended) labels.push("Recommended");
+    if (comparison === appliedComparison) labels.push("Applied");
+    if (labels.length > 0) {
+      const label = document.createElement("span");
+      label.className = "comparison-decision-label";
+      label.textContent = labels.join(" · ");
+      action.append(label);
+    } else if (comparison.error) {
+      const label = document.createElement("span");
+      label.className = "comparison-decision-label";
+      label.textContent = "Failed";
+      action.append(label);
+    }
     if (comparison.centers) {
       const apply = document.createElement("button");
       apply.type = "button";
       apply.textContent = "Apply";
+      apply.setAttribute(
+        "aria-label",
+        `Apply ${comparisonSettingsText(comparison.settings)} to ${comparisonFile?.name ?? "the selected image"}`,
+      );
       apply.disabled = active;
       apply.addEventListener("click", function applyComparison(): void {
         void applyComparisonResult(comparison);
@@ -132,21 +182,29 @@ function drawComparisons(): void {
 async function applyComparisonResult(comparison: Comparison): Promise<void> {
   const result = results[selected];
   if (active || !result || comparisonFile !== result.file || !comparison.centers) return;
+  let dimensions: { width: number; height: number } | undefined;
+  if (result.width === 0 || result.height === 0) {
+    const bitmap = await decoded(result.file);
+    dimensions = { width: bitmap.width, height: bitmap.height };
+    bitmap.close();
+  }
+  if (active || results[selected] !== result || comparisonFile !== result.file) return;
   elements.diameter.value = String(comparison.settings.diameter);
   elements.k.value = String(comparison.settings.k);
   elements.threshold.value = String(comparison.settings.threshold);
   result.centers = comparison.centers;
   result.settings = comparison.settings;
   result.error = undefined;
-  if (result.width === 0 || result.height === 0) {
-    const bitmap = await decoded(result.file);
-    result.width = bitmap.width;
-    result.height = bitmap.height;
-    bitmap.close();
+  if (dimensions) {
+    result.width = dimensions.width;
+    result.height = dimensions.height;
   }
+  appliedComparison = comparison;
   drawRows();
+  drawComparisons();
   await showPreview(result);
   elements.download.disabled = false;
+  elements.comparisonApplied.textContent = `Applied: ${comparisonSettingsText(comparison.settings)}. These settings will be used by Analyze images.`;
   setStatus(`Applied comparison settings to ${result.file.name}.`);
 }
 async function decoded(file: File): Promise<ImageBitmap> {

@@ -19,3 +19,9 @@ origin belongs there too. Rules: [REPO_STYLE.md](REPO_STYLE.md).
 - I want to compare settings on one image before applying the selected setting to a batch.
 
 - Give the interface a dark look with an ode to Red Dead Redemption.
+
+- Additional calibration counts: B301 is 235 and H1001 is 745.
+
+- Compare settings should give more feedback; use the human interaction expert skill to improve it.
+
+- Zoom must magnify enough to inspect individual detection picks.

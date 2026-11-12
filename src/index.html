@@ -76,6 +76,17 @@
           Select an image, then compare 27 cell-size, k, and threshold combinations. Count stability
           is a tuning heuristic, not an accuracy measurement.
         </p>
+        <div class="comparison-feedback" aria-label="Comparison feedback">
+          <label id="comparison-progress-label" for="comparison-progress">Comparison progress</label>
+          <progress id="comparison-progress" max="1" value="0" aria-describedby="comparison-status">
+            0 candidates complete
+          </progress>
+          <p id="comparison-status" aria-live="polite" aria-atomic="true">
+            Choose an image to prepare a comparison.
+          </p>
+          <p id="comparison-recommendation"></p>
+          <p id="comparison-applied"></p>
+        </div>
         <table>
           <thead>
             <tr>
@@ -84,7 +95,7 @@
               <th>Threshold</th>
               <th>Count</th>
               <th>Time</th>
-              <th></th>
+              <th>Decision</th>
             </tr>
           </thead>
           <tbody id="comparison-rows"></tbody>

@@ -101,3 +101,48 @@ each range by the larger of one and that line's median count, and sums the three
 ranges as the stability score. Zero-count candidates are excluded when any candidate is positive;
 equal scores favor the candidate nearest the grid center. This creates a reproducible stability choice, then applies
 that exact setting to a batch. It measures parameter stability, not biological accuracy.
+
+## Touching-object inspection
+
+The actual browser Rust/Wasm detector was run on all six full-resolution originals at
+diameter 10, k 4, threshold 0.10. Selected connected objects were then inspected at 4x
+nearest-neighbor enlargement and compared across diameter and k values. Coordinates below
+are original image pixels, with x rightward and y downward from the upper-left corner.
+
+For the parameter comparison, the detector received 256-pixel crops centered at these
+coordinates; only detections in the documented object bounding box plus two pixels were
+counted. Threshold remained 0.10 throughout.
+
+| Image and crop center | d8/k4 | d10/k3 | d10/k4 | d10/k6 | d14/k4 | Visual interpretation |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| H501 (534,2311) | 2 | 2 | 2 | 2 | 2 | Two clear touching lobes are consistently separated. |
+| A501 (3688,3326) | 4 | 4 | 3 | 3 | 1 | Saturated irregular object is sensitive to size; multiple centers may over-segment it. |
+| F201 (2319,3917) | 2 | 2 | 2 | 2 | 1 | Two nearby maxima become one with the larger diameter; biological multiplicity is ambiguous. |
+
+Object bounding boxes (left,top,right,bottom) are respectively
+(513,2299,555,2323), (3670,3314,3706,3338), and (2301,3904,2338,3931).
+The local comparison artifact is `generated/touching_cells.png`, with the underlying
+coordinates and parameter results in `generated/touching_cells.json`.
+
+The detector can separate touching cells when they retain distinct intensity peaks.
+Saturated or irregular objects can contain several surviving maxima and be over-counted.
+The current duplicate suppression distance is half the target diameter: five pixels at
+the default. Increasing diameter can suppress those extra centers, but also merge genuine
+close pairs. These crops therefore belong in future detector comparisons; total-image
+count agreement and parameter stability alone do not establish correct object separation.
+No detector algorithm was changed during this inspection.
+
+## Additional calibration images
+
+B301 and H1001 were evaluated after the original six-image tuning, using the actual
+browser Rust/Wasm detector without parameter changes: diameter 10, k 4, threshold 0.10.
+Both completed together in 1.960 seconds, including decoding and previews.
+
+| Image | Human count | Detector count | Signed error | Relative error |
+| --- | ---: | ---: | ---: | ---: |
+| B301 | 235 | 294 | +59 | +25.1% |
+| H1001 | 745 | 785 | +40 | +5.4% |
+
+The fixed-default mean absolute percentage error across all eight images is 12.5%.
+These counts were supplied for calibration and are now included in
+`docs/REFERENCE_COUNTS.csv`. No retuning was performed for these two images.

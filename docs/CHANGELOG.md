@@ -4,6 +4,10 @@
 
 ### Added
 
+- Added B301 and H1001 calibration references and measured unchanged-default Rust/Wasm counts against all eight images.
+
+- Inspected touching fluorescent objects with actual Rust/Wasm detections and compared size/k sensitivity on three real-image crops.
+
 - Built a browser-local PI-positive cell counter with a TypeScript interface and Rust/Wasm detector.
 - Added image overlays, sequential plate-sized batches, cancellation, and CSV results.
 - Added real-image size measurements and calibration against six human reference counts.
@@ -11,6 +15,10 @@
 - Added GitHub Pages packaging and native/Wasm parity and browser workflow checks.
 
 ### Changed
+
+- Expanded image zoom for close pick inspection and added actual-pixel and fit-image views.
+
+- Improved comparison feedback with progress, timing, result spread, recommendation context, and explicit applied-setting status.
 
 - Refreshed the README with the Pages link, calibration evidence, and auto-tuning workflow.
 - Updated the Pages workflow seed to Node 26 and current stable Rust for browser Wasm builds.

@@ -163,6 +163,44 @@ button:disabled {
   margin-top: 1rem;
   overflow-x: auto;
 }
+.comparison-feedback {
+  display: grid;
+  gap: 0.35rem;
+  max-width: 62rem;
+  margin: 1rem 0;
+  padding: 0.8rem;
+  border-left: 3px solid #ba3028;
+  background: #161310;
+}
+.comparison-feedback label {
+  color: #d7c299;
+  font-weight: 700;
+}
+.comparison-feedback p {
+  margin: 0;
+  color: #c8bba3;
+}
+#comparison-progress {
+  width: min(100%, 34rem);
+  height: 0.8rem;
+}
+#comparison-recommendation:not(:empty) {
+  color: #f2e6cc;
+}
+#comparison-applied:not(:empty) {
+  color: #d7c299;
+  font-weight: 700;
+}
+.comparison-decision {
+  display: grid;
+  gap: 0.35rem;
+  align-items: start;
+}
+.comparison-decision-label {
+  color: #d7c299;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
 .comparison button {
   padding: 0.3rem 0.5rem;
   font-size: 0.8rem;

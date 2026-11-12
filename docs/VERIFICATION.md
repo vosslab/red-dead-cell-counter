@@ -68,3 +68,13 @@ minimatch >=11.0.8 override fixes GHSA-g3hv-75wg-m249 without downgrading ESLint
 All direct packages were checked against current npm releases; Cargo update resolved no
 newer packages. TypeScript 7.0.2 runs the compiler, with the official TypeScript 6 API
 compatibility alias for ESLint. A clean temporary npm ci installation succeeded.
+
+## Additional calibration baseline
+
+The unchanged default processed B301 as 294 versus human 235, and H1001 as 785 versus
+human 745. Relative errors are +25.1% and +5.4%. All eight calibration images together
+have 12.5% mean absolute percentage error. These two images were not used to choose
+the existing defaults before this measurement.
+
+The updated eight-image Chromium workflow check passed in 6.1 seconds (6.8 seconds
+including runner setup). README/link checks passed 42 tests, and test TypeScript checking passed.

@@ -19,16 +19,18 @@ on your device.
 ## What the counts look like
 
 The current shared default uses a 10-pixel diameter, k = 4, and response threshold 0.10.
-Against six supplied human counts, it reduced mean absolute percentage error from 31.0%
-to 11.6% during calibration:
+Against eight supplied human counts, it has 12.5% mean absolute percentage error.
+On the original six-image calibration set, tuning reduced that error from 31.0% to 11.6%:
 
 | Image | Human count | Detector count |
 | --- | ---: | ---: |
 | A101 | 332 | 398 |
 | A501 | 362 | 339 |
+| B301 | 235 | 294 |
 | C601 | 270 | 296 |
 | E401 | 450 | 546 |
 | F201 | 1050 | 1172 |
+| H1001 | 745 | 785 |
 | H501 | 2997 | 3021 |
 
 These images are calibration data, not independent validation. Stable counts across nearby
@@ -116,7 +118,8 @@ source source_me.sh && python3 tools/characterize_images.py
 `build_github_pages.sh` produces the static `dist/` artifact, including the worker and Wasm
 binary. The root [workflow seed](deploy-pages.yml) sets up Node 26, stable Rust, the browser
 Wasm target, and wasm-pack before building and publishing `dist/`.
-GitHub Actions runs this workflow when it is installed as `.github/workflows/deploy-pages.yml`.
+GitHub Actions runs the deployed workflow at `.github/workflows/deploy-pages.yml`; the
+root seed remains the editable deployment template.
 
 ## Credits and license
 
