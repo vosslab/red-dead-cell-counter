@@ -24,7 +24,7 @@ or a measurement of researchers' confidence or comprehension.
 | --- | --- | --- |
 | Start comparison | Has work started, and for which image? | Visibility of system status: show preparation immediately and identify the image. |
 | Wait | Which settings are running; how much is left? | Recognition over recall: show completed/total, a labeled progress element, current parameters, elapsed time, and an approximate remaining time after enough completed runs. |
-| Interpret results | How different are counts, and why this recommendation? | Explain the decision: summarize successful/failed runs, count range, and count ranges along each parameter axis around the recommendation. State that stability is not accuracy. |
+| Interpret results | How different are counts, and why this recommendation? | Explain the decision: summarize successful/failed runs, count range, mean, median, and population SD. Explain the representative median run and distinguish it from an accuracy claim. |
 | Apply result | Which settings and count are now in use? | WCAG 1.4.1: use explicit Applied/Recommended text as well as visual highlighting. Confirm which settings the next batch will use. |
 | Cancel or encounter failure | What finished; can I recover? | Error recovery: retain completed rows, report partial completion and failures honestly, and never display a cancelled or failed run as fully completed. |
 | Receive updates accessibly | Can updates be perceived without moving focus? | WCAG 4.1.3: use polite live feedback and a labeled progress control; do not move keyboard focus to announce progress. |
@@ -85,3 +85,11 @@ Verification independently calculates all three statistics from the table's Coun
 - Temporary captures and scan reports are under `/private/tmp/red-cell-experiment/`,
   including `comparison-feedback.png`, `feedback-zoom.png`, and
   `feedback-accessibility-final.json`.
+
+## DoE update
+
+The 27-point grid and its axis-line stability explanation above describe the previous
+version. Comparison now uses a 15-point log-space central composite design. Feedback
+identifies factorial/axial/center runs, reports the actual design center and parameter
+ranges, and explains which evaluated median-count run is applied. Statistics remain
+descriptive across the tested settings. See [experimental design](EXPERIMENT_DESIGN.md).

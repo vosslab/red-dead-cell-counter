@@ -3,6 +3,37 @@
 Engineering verification performed on macOS with Node 26 and Chromium 158.
 These checks do not establish biological counting accuracy.
 
+## Saloon interface
+
+The saloon theme was built and inspected on 2026-11-11. All 13 Chromium workflow
+checks passed, including keyboard entry and the existing counting, comparison,
+cancellation, CSV, and zoom paths. TypeScript, ESLint, formatting, and the four
+experimental-design tests passed. The original 96-image stress test was not repeated.
+
+Rendered entrance and empty-counter checks covered 320, 390, 768, and 1440 pixel
+widths. The 768-pixel check used a light system preference; the application retains
+its intended dark palette. No page overflow or failed asset requests occurred.
+Reduced-motion preference removes door transitions and rotation. An axe scan using
+WCAG A/AA tags found no violations on the entrance or populated counter; this is
+automated coverage, not a full accessibility audit. A501 still produced 339 detections.
+
+Current WebP captures are [the saloon](screenshots/saloon.webp) and
+[the populated counter](screenshots/counter.webp), captured from the production
+build served under the repository's Pages subpath and encoded at quality 90.
+
+Editable original artwork is in `src/assets/frontier_saloon.svg` and
+`src/assets/longhorn_skull.svg`. SVG XML parsed successfully and was inspected both
+with a vector renderer and through the actual page. Construction used semantic
+groups, layered primitive forms, and a restrained contour hierarchy. The skill's
+local drawing sources were *Generative Art with JavaScript and SVG*, "Grouping and
+Reusing Elements", and *A Handbook of Biological Illustration*, the line-weight
+passage on emphasizing nearer contours. CSS background composition followed
+*Background Magic CSS*, chapters 5 and 8, with current
+[MDN reduced-motion guidance](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/At-rules/@media/prefers-reduced-motion).
+
+The supplied Western GUI reference images informed the requested materials and
+motifs; the delivered geometry is original and uses no stock artwork or remote fonts.
+
 ## Completed checks
 
 - Repository type checking, ESLint, and formatting gate passed.
@@ -86,3 +117,12 @@ verified 96-image stress test. Mean, median, and population standard deviation w
 independently checked against the comparison table. Deep zoom, actual-pixel view, fit,
 and partial cancellation passed. See [the HCI inspection](COMPARISON_FEEDBACK.md) for
 the task model, accessibility findings, and scope of the automated scan.
+
+## Central composite comparison
+
+The current comparison replaces the grid with 15 log-space central composite points.
+Four design/selection Node tests and the repository check gate pass. The updated Chromium
+regression passed 12/12 in 17.2 seconds (excluding the previously verified 96-image stress
+run). A focused repeat confirmed thresholds below 0.001 and valid fractional settings.
+README/link checks passed 45 tests. See [design](EXPERIMENT_DESIGN.md) and
+[real-image DoE measurements](DOE_RESULTS.md) for coverage and count behavior.

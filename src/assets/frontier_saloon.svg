@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 900" role="img" aria-labelledby="title desc">
+  <title id="title">Frontier saloon at red sunset</title><desc id="desc">A wooden saloon, longhorn sign, horses, saguaro cacti, and distant desert mesas under a red sunset.</desc>
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#481716"/><stop offset=".58" stop-color="#a43b26"/><stop offset="1" stop-color="#ed9c51"/></linearGradient>
+    <linearGradient id="wood" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#4b2918"/><stop offset=".48" stop-color="#87502a"/><stop offset="1" stop-color="#3e2117"/></linearGradient>
+    <pattern id="grain" width="92" height="38" patternUnits="userSpaceOnUse"><path d="M0 34h92M13 16h53" fill="none" stroke="#2b160e" opacity=".5" stroke-width="3"/></pattern>
+    <g id="cactus" fill="#1b3527" stroke="#120e0a" stroke-width="8" stroke-linejoin="round"><path d="M0 230V55q0-25 18-25t18 25v55h32V76q0-20 16-20t16 20v66q0 17-17 17H36v71Z"/><path d="M18 34V10m-11 26h22" fill="none" stroke="#6f9956" stroke-width="3"/></g>
+    <g id="horse" stroke="#140d09" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="m94 111 8 62 12 7-2 7H91l-11-72m81-6-9 62 10 9-3 7h-18l4-75" fill="#332017"/>
+      <path d="M54 71Q65 49 103 60l45 2 26-39 8-17 7 19 9-16 4 22 12 11 22 14 2 14-18 6-17-13-14 39-1 18 10 55 12 6-1 7h-23l-15-61q-24 9-56-1l-15-8-19 58 9 7-1 7H57l3-16 10-49Q44 106 54 71Z" fill="#65412b"/>
+      <path d="M57 72Q30 76 31 113l-6 34 16-13 9-32" fill="#21140e"/>
+      <path d="m171 28-17 34 14 12 15-38-1-11" fill="#25170f"/>
+      <path d="M101 61q18 6 43-1l-2 21-40 2Z" fill="#b47a43" stroke-width="4"/>
+      <path d="M106 59v-8m30 7 6-11m-32 38v22h13" fill="none" stroke="#d6ae70" stroke-width="3"/>
+      <path d="m204 49-7 22 24 3m-18-12q-13 37-54 30" fill="none" stroke="#c8a069" stroke-width="2"/>
+      <circle cx="209" cy="46" r="2.5" fill="#edcb8b" stroke="none"/>
+      <path d="M66 183h15m109 0h15" fill="none" stroke-width="7"/>
+    </g>
+  </defs>
+  <rect width="1440" height="900" fill="url(#sky)"/>
+  <circle cx="720" cy="205" r="145" fill="#d14a32"/>
+  <path d="M0 460 114 400l75 41 105-110 124 113 115-77 105 78 75-101 133 91 108-52 141 73 132-101 143 110v336H0Z" fill="#5c2a21"/>
+  <path d="M0 536q190-72 356-26t293-22 337 18 454-48v442H0Z" fill="#2b1a13"/>
+  <g opacity=".8"><use href="#cactus" transform="translate(82 302) scale(1.3)"/><use href="#cactus" transform="translate(1260 342) scale(1.12)"/></g>
+  <g opacity=".96"><path d="M62 738h235m-213-35v83m190-83v83" stroke="#9a6235" stroke-width="10"/><use href="#horse" transform="translate(48 590) scale(1.08)"/><path d="M1143 738h235m-213-35v83m190-83v83" stroke="#9a6235" stroke-width="10"/><use href="#horse" transform="translate(1392 590) scale(-1.08 1.08)"/></g>
+  <g id="saloon" stroke="#1d110b" stroke-linejoin="round">
+    <path d="M385 405h670l70 55H315Z" fill="#24150f" stroke-width="12"/>
+    <path d="M364 458h712v348H364Z" fill="url(#wood)" stroke-width="12"/>
+    <path d="M410 474h620v314H410Z" fill="url(#grain)" stroke="none"/>
+    <g fill="none" stroke="#2c180f" stroke-width="5" opacity=".7"><path d="M411 514h618M411 552h618M411 590h618M411 628h618M411 666h618M411 704h618M411 742h618"/><path d="M510 474v40m210-40v40m215-40v40M472 514v38m180 0v38m255-38v38M527 590v38m207-38v38m212-38v38M465 666v38m224-38v38m241-38v38M580 742v44m198-44v44"/></g>
+    <path d="M432 374h576l-25 92H457Z" fill="#aa7541" stroke-width="12"/>
+    <path d="M458 397h524" fill="none" stroke="#e4c17a" stroke-width="3" opacity=".8"/>
+    <g aria-label="Saloon sign"><rect x="537" y="401" width="366" height="104" rx="10" fill="#2c180f" stroke="#e2bd74" stroke-width="7"/><text x="720" y="475" fill="#efd69a" font-family="Rockwell, Georgia, serif" font-size="68" font-weight="700" text-anchor="middle" letter-spacing="9">SALOON</text></g>
+    <g id="skull" transform="translate(252 25) scale(.65)" fill="#e6d2a0" stroke="#20130d" stroke-linecap="round" stroke-linejoin="round"><path d="M625 420q-64-38-122-42 37 58 110 66" stroke-width="7"/><path d="M815 420q64-38 122-42-37 58-110 66" stroke-width="7"/><path d="M661 420q3-32 26-38h66q23 6 26 38l-15 44-29 34-15 25-15-25-29-34Z" stroke-width="7"/><path d="M681 425q12-11 25 1l-6 15-17-3zm78 0q-12-11-25 1l6 15 17-3z" fill="#20130d" stroke-width="2"/><path d="m706 454 14-12 14 12-14 16Z" fill="#633f27" stroke-width="4"/></g>
+    <g id="doors" fill="#20130d" stroke="#bd854a" stroke-width="8"><path d="M607 612q0-49 53-49h60v186h-60q-53 0-53-49Z"/><path d="M833 612q0-49-53-49h-60v186h60q53 0 53-49Z"/></g>
+    <g fill="#20130d" stroke="#d5a75c" stroke-width="7"><rect x="458" y="570" width="105" height="116" rx="5"/><path d="M510 570v116M458 628h105"/><rect x="877" y="570" width="105" height="116" rx="5"/><path d="M929 570v116M877 628h105"/></g>
+    <g fill="#6d3a20" stroke="#1c110c" stroke-width="9"><path d="M390 751h660l47 49H343Z"/><path d="M554 749v-118h26v118m280 0v-118h26v118"/></g>
+    <path d="M362 803h716l-52 36H414Z" fill="#bc7c40" stroke="#1c110c" stroke-width="9"/>
+    <path d="M440 750h560M454 531v256m532-256v256" fill="none" stroke="#c18a4d" stroke-width="8"/>
+  </g>
+  <path d="M0 808q202-48 405 8t402-6q255-73 633 20v70H0Z" fill="#16100c"/>
+  <g fill="#dca05b" opacity=".45"><ellipse cx="266" cy="787" rx="54" ry="8"/><ellipse cx="1096" cy="790" rx="52" ry="8"/></g>
+</svg>

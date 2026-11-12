@@ -4,6 +4,10 @@
 
 ### Added
 
+- Added a saloon entrance with swinging-door hover and keyboard access, original editable
+  SVG saloon, horses, longhorn skull, and saguaro artwork.
+- Added current saloon and populated-counter WebP screenshots to the README.
+
 - Added mean, median, and population standard deviation of successful comparison counts to the detailed feedback.
 
 - Added B301 and H1001 calibration references and measured unchanged-default Rust/Wasm counts against all eight images.
@@ -17,6 +21,12 @@
 - Added GitHub Pages packaging and native/Wasm parity and browser workflow checks.
 
 ### Changed
+
+- Extended the Western theme with wood panels, a wanted poster, an aged-paper count ledger,
+  and an illustrated empty image view.
+
+- Replaced the 27-setting grid with a 15-point log-space central composite design and representative median-run application.
+- Allowed continuous DoE parameter values and positive thresholds below 0.001.
 
 - Expanded image zoom for close pick inspection and added actual-pixel and fit-image views.
 

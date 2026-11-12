@@ -20,6 +20,11 @@ type Comparison = {
 };
 
 const elements = {
+  gate: document.querySelector<HTMLElement>("#saloon-gate")!,
+  enter: document.querySelector<HTMLButtonElement>("#enter-saloon")!,
+  counter: document.querySelector<HTMLElement>("#counter")!,
+  counterTitle: document.querySelector<HTMLElement>("#counter-title")!,
+  emptyImage: document.querySelector<HTMLElement>("#empty-image")!,
   images: document.querySelector<HTMLInputElement>("#images")!,
   diameter: document.querySelector<HTMLInputElement>("#diameter")!,
   k: document.querySelector<HTMLInputElement>("#k")!,
@@ -198,7 +203,7 @@ function drawComparisons(): void {
     if (labels.length > 0) {
       const label = document.createElement("span");
       label.className = "comparison-decision-label";
-      label.textContent = labels.join(" · ");
+      label.textContent = labels.join(" * ");
       action.append(label);
     } else if (comparison.error) {
       const label = document.createElement("span");
@@ -293,6 +298,8 @@ async function preview(result: ImageResult): Promise<void> {
   }
   context.drawImage(bitmap, 0, 0);
   bitmap.close();
+  elements.emptyImage.hidden = true;
+  elements.canvas.hidden = false;
   if (elements.markers.checked && result.centers) {
     context.strokeStyle = "#7dffb0";
     context.lineWidth = Math.max(2, result.width / 1300);
@@ -499,9 +506,9 @@ async function compareSettings(): Promise<boolean> {
     const values = candidates.map(function value(candidate: DesignPoint): number {
       return candidate[axis];
     });
-    return `${showNumber(Math.min(...values))}–${showNumber(Math.max(...values))}${suffix}`;
+    return `${showNumber(Math.min(...values))}-${showNumber(Math.max(...values))}${suffix}`;
   }
-  elements.comparisonSummary.textContent = `Testing a 15-point central-composite design for ${result.file.name}: 1 center, 8 factorial, and 6 axial points. Values are log-spaced from diameter ${range("diameter", " px")}, k ${range("k")}, and threshold ${range("threshold")}.`;
+  elements.comparisonSummary.textContent = `Testing a 15-point central-composite design for ${result.file.name}: 1 center, 8 factorial, and 6 axial points. Requested starting point: ${comparisonSettingsText(input)}. Actual design center: ${comparisonSettingsText(candidates[0]!)}. Values are log-spaced from diameter ${range("diameter", " px")}, k ${range("k")}, and threshold ${range("threshold")}.`;
   elements.comparisonRecommendation.textContent = "";
   elements.comparisonApplied.textContent = "";
   setComparisonProgress(0, candidates.length);
@@ -632,7 +639,7 @@ async function compareSettings(): Promise<boolean> {
   const counts = successful.map(function count(comparison: Comparison): number {
     return (comparison.centers?.length ?? 0) / 2;
   });
-  const countRange = `${Math.min(...counts)}–${Math.max(...counts)}`;
+  const countRange = `${Math.min(...counts)}-${Math.max(...counts)}`;
   const statistics = countStatisticsText(counts);
   elements.comparisonRecommendation.textContent = `Representative median run: ${(recommendation.centers?.length ?? 0) / 2} cells with ${comparisonSettingsText(recommendation.settings)}. This is an actual tested setting whose count is closest to the median of the successful design runs. These statistics describe sensitivity to settings.`;
   setComparisonStatus(
@@ -685,6 +692,8 @@ function download(): void {
 }
 function choose(): void {
   const files = Array.from(elements.images.files ?? []);
+  elements.canvas.hidden = true;
+  elements.emptyImage.hidden = false;
   results = files.map(function makeResult(file: File): ImageResult {
     return { file, width: 0, height: 0 };
   });
@@ -713,6 +722,12 @@ function updateZoom(): void {
   elements.canvas.style.height = `${elements.canvas.height * scale}px`;
 }
 function main(): void {
+  elements.enter.addEventListener("click", function enterSaloon(): void {
+    elements.gate.hidden = true;
+    elements.counter.hidden = false;
+    elements.counterTitle.focus();
+  });
+  elements.enter.disabled = false;
   elements.images.addEventListener("change", choose);
   elements.analyze.addEventListener("click", function start(): void {
     void analyze();

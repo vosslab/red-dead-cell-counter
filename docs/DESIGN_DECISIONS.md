@@ -45,12 +45,18 @@ et al., *DoG Picker and TiltPicker*.
 counting raw thresholded connected components.
 
 **Consequence.** The verified starting values are a 10-pixel target diameter, k = 4, and
-response threshold 0.10. A single-image comparison runs 27 nearby settings: diameter at 75%,
-100%, and 125%; k at 3, 4, and 6; and threshold at 50%, 100%, and 200%. Auto-tune scores
-each result by the sum of count ranges normalized by each line's median along its three diameter, k, and
-threshold lines, excludes zero neighbors when the center count is nonzero, and breaks ties in
-favor of the center setting. It measures parameter stability, not counting accuracy. Applying
-one result uses its exact setting for later batch work.
+response threshold 0.10. Single-image comparison uses a 15-run central composite design:
+eight factorial corners, six axial points, and one center. For three factors, alpha = 8^(1/4),
+following the [NIST central composite design guidance](https://www.itl.nist.gov/div898/handbook/pri/section3/pri3361.htm).
+Diameter, k, and threshold vary in continuous logarithmic coordinates. The outer valid ranges
+are 5 to 20 pixels, k = 2 to 8, and threshold 0.025 to 0.4; when a requested center would
+exceed a range, that factor's log window recenters at the range's geometric mean without
+changing the 15-run design. The interface displays the requested start and actual center/ranges.
+The representative median run is the actual tested run closest to the median successful count,
+with ties resolved by logarithmic distance from the center. Auto-tune may apply that run to a
+batch. This describes a representative result, not an accuracy optimizer or quadratic-model
+optimizer. The summary keeps mean, median, and population standard deviation across successful
+runs.
 
 **Owner.** `rust/src/lib.rs` and `docs/DETECTOR_EXPERIMENT.md`
 
@@ -66,3 +72,18 @@ already decodes the supported upload formats.
 dimensions, buffer length, and numeric detector inputs.
 
 **Owner.** `rust/Cargo.toml` and `rust/src/lib.rs`
+
+### Saloon entrance and Western surfaces
+
+**Decision.** Open on an illustrated saloon with one Enter saloon button. Keep the
+counter hidden until entry, then focus its heading. Use original SVG art, CSS wood
+surfaces, and aged-paper wanted posters and results.
+
+**Why.** The requested Western theme needs a recognizable place and materials.
+Local assets keep the static tool self-contained.
+
+**Consequence.** Entry requires one click or keyboard activation on each page load.
+Decorative art stays silent to assistive technology, door motion honors reduced
+motion, and microscopy images retain a neutral dark viewing surface.
+
+**Owner.** `src/index.html`, `src/style.css`, `src/assets/`, and `src/main.ts`

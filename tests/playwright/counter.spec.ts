@@ -73,6 +73,7 @@ async function csvContent(download: Download): Promise<string> {
 
 async function open(page: Page): Promise<void> {
   await page.goto("/");
+  await page.getByRole("button", { name: "Enter saloon" }).click();
   await expect(page.getByRole("status")).toHaveText("Choose one or more JPEG or PNG images.");
 }
 
@@ -80,6 +81,18 @@ test.beforeEach(({ page }): void => {
   page.on("pageerror", (error: Error): void => {
     throw error;
   });
+});
+
+test("saloon entrance supports keyboard access and reveals the counter", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Red Dead Cell Counter" })).toBeVisible();
+  await expect(page.getByLabel("Analysis controls")).toBeHidden();
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("button", { name: "Enter saloon" })).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("button", { name: "Enter saloon" })).toBeHidden();
+  await expect(page.getByRole("heading", { name: "Dead cell counter" })).toBeFocused();
+  await expect(page.getByRole("heading", { name: "No cells on the board" })).toBeVisible();
 });
 
 test("researcher can count a real PI image and download its CSV result", async ({ page }) => {
@@ -232,7 +245,7 @@ test("all supplied images finish through the browser worker", async ({ page }) =
     "H1001.jpg",
     "H501.jpg",
   ];
-  await page.goto("/");
+  await open(page);
   await page
     .getByLabel("Choose images")
     .setInputFiles(names.map((name) => path.join(process.cwd(), "IMAGES", name)));
@@ -415,4 +428,11 @@ test("DoE runs retain small positive thresholds", async ({ page }) => {
   await expect(page.locator("#comparison-rows")).toContainText("Center");
   await expect(page.locator("#comparison-rows")).toContainText("Factorial");
   await expect(page.locator("#comparison-rows")).toContainText("Axial");
+  const fractional = page.locator("#comparison-rows tr").filter({ hasText: "Factorial" }).first();
+  await fractional.getByRole("button", { name: "Apply" }).click();
+  for (const id of ["diameter", "k", "threshold"]) {
+    expect(
+      await page.locator(`#${id}`).evaluate((input: HTMLInputElement) => input.validity.valid),
+    ).toBe(true);
+  }
 });

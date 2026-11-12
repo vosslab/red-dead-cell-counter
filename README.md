@@ -4,16 +4,18 @@ Count red, propidium-iodide-positive cells in fluorescence images without upload
 
 [Open the GitHub Pages tool](https://vosslab.github.io/red-dead-cell-counter/)
 
-A dark frontier interface, inspired by Red Dead Redemption, pairs original microscopy
-images with a Rust/WebAssembly Difference of Gaussians detector. JPEG and PNG pixels stay
-on your device.
+A Western saloon entrance, wanted posters, wood panels, and original frontier artwork
+set the scene for a Rust/WebAssembly Difference of Gaussians detector. JPEG and PNG pixels
+stay on your device.
 
 <!-- screenshots:begin (managed by screenshot-docs) -->
+![Western saloon entrance with horses, saguaro cacti, a longhorn skull, and a wanted poster](docs/screenshots/saloon.webp)
+![Cell counter showing A501 detections, wood controls, and the paper count ledger](docs/screenshots/counter.webp)
 <!-- screenshots:end -->
 
 - Inspect individual images with detection circles, fit-to-panel viewing, and zoom.
-- Compare 27 cell-diameter, k, and threshold combinations, with counts and runtimes.
-- Auto-tune by count stability, or apply a comparison row yourself before batching.
+- Compare 15 central-composite cell-diameter, k, and threshold settings, with counts and runtimes.
+- Auto-tune to the representative median run, or apply a comparison row yourself before batching.
 - Process plate-sized batches sequentially and download CSV counts, settings, and errors.
 
 ## What the counts look like
@@ -36,15 +38,16 @@ On the original six-image calibration set, tuning reduced that error from 31.0% 
 These images are calibration data, not independent validation. Stable counts across nearby
 settings indicate parameter robustness, not necessarily correct biological counts.
 
-Native/Wasm parity, all six original images, cancellation, CSV settings, and a 96-image
-batch have been exercised. See [verification evidence](docs/VERIFICATION.md).
+See [verification evidence](docs/VERIFICATION.md) for the current checks and their limits.
 
 ## Try an image, then a batch
 
-1. Open the tool and choose JPEG or PNG images. Select a row to inspect that image.
+1. Open the tool, select **Enter saloon**, and choose JPEG or PNG images.
+   Select a row to inspect that image.
 2. Choose **Analyze selected image** for a count with the current settings.
-3. Choose **Compare settings** to test nearby values. The table shows each count and
-   runtime, highlights the stability recommendation, and applies it automatically.
+3. Choose **Compare settings** to run a 15-point central composite design around the current
+   values. The table shows each count and runtime, highlights the actual tested run closest
+   to the comparison median, and automatically applies that representative run.
    Progress feedback includes elapsed/remaining time; the final summary reports count
    range, mean, median, and population standard deviation across successful settings.
    Choose **Apply** on another row to use that result instead.
@@ -52,10 +55,15 @@ batch have been exercised. See [verification evidence](docs/VERIFICATION.md).
    **Auto-tune and analyze batch** to compare the selected image first and then batch.
 5. Choose **Download CSV**. Every row records the settings actually used for that image.
 
-The comparison spans rounded diameters at 75%, 100%, and 125% of the current diameter;
-k = 3, 4, and 6; and thresholds at 50%, 100%, and 200% of the current threshold.
-For example, the default threshold tests 0.05, 0.10, and 0.20. Review the overlay before
-using one image's settings across a plate with different acquisition conditions.
+The comparison uses eight factorial corners, six axial points, and one center.
+For three factors its axial distance is alpha = 8^(1/4). Diameter, k, and threshold use
+continuous logarithmic coordinates, so the tested settings stay proportional to the starting
+point. Around the default starting values, the outer ranges are 5 to 20 pixels,
+k = 2 to 8, and threshold 0.025 to 0.4.
+At a boundary the log window recenters at the geometric mean while preserving the design.
+The requested starting point and actual center/ranges remain visible. Custom positive thresholds
+are accepted, including values below 0.001. Review the overlay before applying an image's
+settings across a plate with different acquisition conditions.
 
 ## Build and run locally
 
@@ -69,7 +77,8 @@ cargo install wasm-pack --locked
 ./run_web_server.sh
 ```
 
-Open the local URL printed by the server, choose an image, and select **Analyze images**.
+Open the local URL printed by the server, select **Enter saloon**, choose an image,
+and select **Analyze images**.
 The image panel will show detection circles and its table row will show a count.
 Use **Actual pixels** for a 1:1 view, or zoom up to 6400% of the fitted view to inspect
 individual picks. **Fit image** restores the overview; scroll within the image to pan.
@@ -98,6 +107,8 @@ sigma2 = k * sigma1
 
 ## Documentation and checks
 
+- [Experimental design and parameter ranges](docs/EXPERIMENT_DESIGN.md)
+- [Real-image DoE and low-threshold results](docs/DOE_RESULTS.md)
 - [Detector experiments and calibration](docs/DETECTOR_EXPERIMENT.md)
 - [Verification results and limitations](docs/VERIFICATION.md)
 - [Architecture and design decisions](docs/DESIGN_DECISIONS.md)

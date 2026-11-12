@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 140" role="img" aria-labelledby="title desc">
+  <title id="title">Longhorn cattle skull</title><desc id="desc">A stylized bone-colored longhorn skull with wide curved horns.</desc>
+  <g fill="none" stroke="#24150d" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M105 56C73 41 43 45 13 22 25 50 48 70 86 72" fill="#d9c28f" stroke-width="7"/>
+    <path d="M155 56C187 41 217 45 247 22 235 50 212 70 174 72" fill="#d9c28f" stroke-width="7"/>
+    <path d="M95 54Q98 36 113 30H147Q162 36 165 54L157 91 142 111 130 129 118 111 103 91Z" fill="#ead9ad" stroke-width="6"/>
+    <path d="m105 64 8-7 12 10-7 13-11-5zm50 0-8-7-12 10 7 13 11-5z" fill="#24150d" stroke-width="2"/>
+    <path d="m130 88-5 17 5 12 5-12z" fill="#74502d" stroke-width="2"/>
+    <path d="M130 37v27m-13 21 5 11m21-11-5 11M101 48l-8-15m66 15 8-15" stroke-width="2"/>
+  </g>
+</svg>

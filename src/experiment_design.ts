@@ -15,25 +15,43 @@ const axes = ["diameter", "k", "threshold"] as const;
 
 /** Balanced in log space; keep continuous diameters to preserve the design. */
 export function comparisonDesign(center: DetectorSettings): DesignPoint[] {
-  const widths = [Math.log(2), Math.log(2), Math.log(4)];
+  const factors = [2, 2, 4];
   const bounds = [
     [2, 200],
     [1.1, 8],
     [0, Infinity],
   ] as const;
-  const spans = axes.map((axis, index) => {
+  const windows = axes.map((axis, index) => {
     const value = center[axis];
     const [lower, upper] = bounds[index]!;
-    if (!Number.isFinite(value) || value <= lower || value >= upper) {
-      throw new Error(
-        `For a balanced comparison, choose ${axis} strictly between ${lower} and ${upper === Infinity ? "a finite upper value" : upper}.`,
-      );
+    if (!Number.isFinite(value) || value <= 0 || value < lower || value > upper) {
+      throw new Error(`Choose a valid positive ${axis} for the experimental design.`);
     }
-    const span = Math.min(widths[index]!, Math.log(value / lower), Math.log(upper / value));
-    if (span < 1e-6)
-      throw new Error(`Move ${axis} farther from its limit for a balanced comparison.`);
-    return span / alpha;
+    const requestedLow = value / factors[index]!;
+    const requestedHigh = value * factors[index]!;
+    const low = Math.max(lower, requestedLow);
+    const high = Math.min(upper, requestedHigh);
+    if (low <= 0 || !Number.isFinite(high) || high <= low) {
+      throw new Error(`Choose a finite positive range for ${axis}.`);
+    }
+    const actualCenter =
+      low === requestedLow && high === requestedHigh
+        ? value
+        : Math.exp((Math.log(low) + Math.log(high)) / 2);
+    return {
+      low,
+      high,
+      center: actualCenter,
+      span: (Math.log(high) - Math.log(low)) / (2 * alpha),
+    };
   });
+  function parameter(index: number, code: number): number {
+    const window = windows[index]!;
+    // Exact axial endpoints avoid floating-point overshoot of validation limits.
+    if (code === -alpha) return window.low;
+    if (code === alpha) return window.high;
+    return window.center * Math.exp(code * window.span);
+  }
   const coded: Array<{ kind: DesignPoint["kind"]; value: [number, number, number] }> = [
     { kind: "Center", value: [0, 0, 0] },
   ];
@@ -51,8 +69,8 @@ export function comparisonDesign(center: DetectorSettings): DesignPoint[] {
   return coded.map(({ kind, value }) => ({
     kind,
     coded: value,
-    diameter: center.diameter * Math.exp(value[0] * spans[0]!),
-    k: center.k * Math.exp(value[1] * spans[1]!),
-    threshold: center.threshold * Math.exp(value[2] * spans[2]!),
+    diameter: parameter(0, value[0]),
+    k: parameter(1, value[1]),
+    threshold: parameter(2, value[2]),
   }));
 }

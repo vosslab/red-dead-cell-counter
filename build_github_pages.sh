@@ -37,7 +37,7 @@ else
 fi
 
 # Verify required static assets before any destructive step.
-for required in src/index.html src/style.css; do
+for required in src/index.html src/style.css src/assets/frontier_saloon.svg src/assets/longhorn_skull.svg; do
 	if [ ! -f "$required" ]; then
 		echo "ERROR: required source file missing: $required" >&2
 		case "$required" in
@@ -79,6 +79,7 @@ cp rust/pkg/cell_detector_bg.wasm dist/wasm/
 
 cp src/index.html dist/index.html
 cp src/style.css dist/style.css
+cp -R src/assets dist/assets
 touch dist/.nojekyll
 
 test -f dist/index.html

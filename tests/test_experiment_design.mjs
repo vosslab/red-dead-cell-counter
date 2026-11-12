@@ -29,7 +29,7 @@ test("CCD uses 15 unique points, five levels, and orthogonal coded main effects"
   }
 });
 
-test("design contracts symmetrically near limits and rejects impossible centers", () => {
+test("design recenters a bounded log window without clipping individual points", () => {
   const points = comparisonDesign({ ...center, k: 7.9, diameter: 2.1 });
   assert.ok(
     points.every(
@@ -37,7 +37,11 @@ test("design contracts symmetrically near limits and rejects impossible centers"
     ),
   );
   assert.equal(points.length, 15);
-  assert.throws(() => comparisonDesign({ ...center, k: 8 }), /balanced comparison/);
+  assert.ok(
+    comparisonDesign({ ...center, k: 8, diameter: 200 }).every(
+      (p) => p.k <= 8 && p.diameter <= 200,
+    ),
+  );
   assert.throws(() => comparisonDesign({ ...center, diameter: NaN }));
 });
 

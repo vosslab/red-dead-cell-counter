@@ -7,11 +7,42 @@
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <main>
-      <header>
-        <p class="eyebrow">RED DEAD / PROPIDIUM IODIDE ANALYSIS</p>
-        <h1>Dead cell counter</h1>
-        <p>Count red PI-positive cells locally in your browser.</p>
+    <section id="saloon-gate" class="saloon-gate" aria-labelledby="saloon-title">
+      <div class="saloon-intro">
+        <p class="eyebrow">A FRONTIER OUTPOST FOR FLUORESCENCE</p>
+        <h1 id="saloon-title">Red Dead<br />Cell Counter</h1>
+        <p>Every cell has a story. Count the red ones.</p>
+      </div>
+      <div class="saloon-arrival">
+        <div class="saloon-scene">
+          <button id="enter-saloon" class="saloon-entry" type="button" disabled>
+            <span class="saloon-door left-door" aria-hidden="true"></span>
+            <span class="saloon-door right-door" aria-hidden="true"></span>
+            <span class="entry-label">Enter saloon</span>
+          </button>
+        </div>
+        <aside class="wanted-poster" aria-label="Wanted poster">
+          <p class="eyebrow">Wanted</p>
+          <img class="skull" src="assets/longhorn_skull.svg" alt="" width="260" height="140" />
+          <h2>Red cells</h2>
+          <p class="poster-subtitle">PI-POSITIVE</p>
+          <p>Track down PI-positive cells in your microscopy images.</p>
+          <p class="poster-rule">Your images stay on your device.</p>
+        </aside>
+      </div>
+      <p class="saloon-footnote">
+        JPEG &amp; PNG &nbsp; / &nbsp; Single images &amp; batches &nbsp; / &nbsp; No uploads
+      </p>
+      <noscript><p>Enable JavaScript to enter the saloon and run the cell counter.</p></noscript>
+    </section>
+    <main id="counter" hidden>
+      <header class="counter-header">
+        <img class="header-skull" src="assets/longhorn_skull.svg" alt="" width="260" height="140" />
+        <div class="header-copy">
+          <p class="eyebrow">THE SALOON / PROPIDIUM IODIDE ANALYSIS</p>
+          <h1 id="counter-title" tabindex="-1">Dead cell counter</h1>
+          <p>Count red PI-positive cells locally in your browser.</p>
+        </div>
       </header>
       <section class="controls" aria-label="Analysis controls">
         <label class="file-picker" for="images"
@@ -23,10 +54,10 @@
             type="number"
             min="2"
             max="200"
-            step="1"
+            step="any"
             value="10"
         /></label>
-        <label>DoG k<input id="k" type="number" min="1.1" max="8" step="0.1" value="4" /></label>
+        <label>DoG k<input id="k" type="number" min="1.1" max="8" step="any" value="4" /></label>
         <label
           >Response threshold<input id="threshold" type="number" min="0" step="any" value="0.10"
         /></label>
@@ -49,11 +80,17 @@
             ><button id="fit-image" type="button">Fit image</button>
           </div>
           <div id="canvas-wrap" tabindex="0" role="region" aria-label="Image inspection viewport">
-            <canvas id="image" aria-label="Selected image with detected cells"></canvas>
+            <div id="empty-image" class="empty-image">
+              <img src="assets/longhorn_skull.svg" alt="" width="260" height="140" />
+              <h2>No cells on the board</h2>
+              <p>Choose JPEG or PNG images, then analyze to reveal the detections.</p>
+            </div>
+            <canvas id="image" aria-label="Selected image with detected cells" hidden></canvas>
           </div>
         </div>
         <div class="results-panel">
-          <h2>Images</h2>
+          <p class="eyebrow">THE BOUNTY BOARD</p>
+          <h2>Count ledger</h2>
           <table>
             <thead>
               <tr>
