@@ -5,6 +5,9 @@ use image::{ImageBuffer, Luma};
 use imageproc::filter::gaussian_blur_f32;
 use wasm_bindgen::prelude::*;
 
+mod prepared_image;
+pub use prepared_image::PreparedImage;
+
 const MAX_PIXELS: usize = 40_000_000;
 
 #[derive(Clone, Copy)]
@@ -22,6 +25,13 @@ fn validate(
     k: f32,
     threshold: f32,
 ) -> Result<usize, String> {
+    let pixels = validate_image(rgba, width, height)?;
+    validate_settings(diameter, k, threshold)?;
+    Ok(pixels)
+}
+
+fn validate_image(rgba: &[u8], width: u32, height: u32) -> Result<usize, String> {
+    // ASVS 2.2.1/1.4.2: bound dimensions and verify buffer length before allocation.
     let pixels = (width as usize)
         .checked_mul(height as usize)
         .ok_or("image dimensions overflow")?;
@@ -31,6 +41,10 @@ fn validate(
     if rgba.len() != pixels.checked_mul(4).ok_or("image buffer size overflow")? {
         return Err("RGBA buffer length does not match image dimensions".into());
     }
+    Ok(pixels)
+}
+
+fn validate_settings(diameter: f32, k: f32, threshold: f32) -> Result<(), String> {
     if !diameter.is_finite() || !(2.0..=200.0).contains(&diameter) {
         return Err("diameter must be a finite value from 2 to 200 pixels".into());
     }
@@ -40,12 +54,40 @@ fn validate(
     if !threshold.is_finite() || threshold <= 0.00001 {
         return Err("threshold must be finite and greater than 0.00001".into());
     }
-    Ok(pixels)
+    Ok(())
 }
 
 fn target_sigmas(radius: f32, k: f32) -> (f32, f32) {
     let sigma_one = radius * ((k * k - 1.0) / (2.0 * k * k * k.ln())).sqrt();
     (sigma_one, k * sigma_one)
+}
+
+fn red_signal(rgba: &[u8], width: u32, height: u32) -> ImageBuffer<Luma<f32>, Vec<f32>> {
+    ImageBuffer::from_fn(width, height, |x, y| {
+        let offset = ((y * width + x) as usize) * 4;
+        let red = rgba[offset] as f32 / 255.0;
+        let other = rgba[offset + 1].max(rgba[offset + 2]) as f32 / 255.0;
+        Luma([(red - other).max(0.0)])
+    })
+}
+
+fn dog_response(
+    signal: &ImageBuffer<Luma<f32>, Vec<f32>>,
+    diameter: f32,
+    k: f32,
+) -> Result<Vec<f32>, String> {
+    let (sigma_one, sigma_two) = target_sigmas(diameter / 2.0, k);
+    let first = gaussian_blur_f32(signal, sigma_one);
+    let second = gaussian_blur_f32(signal, sigma_two);
+    let response: Vec<f32> = first
+        .pixels()
+        .zip(second.pixels())
+        .map(|(a, b)| a[0] - b[0])
+        .collect();
+    if response.len() != signal.as_raw().len() || response.iter().any(|value| !value.is_finite()) {
+        return Err("DoG response is not finite".into());
+    }
+    Ok(response)
 }
 
 fn has_no_stronger_neighbor(
@@ -79,26 +121,24 @@ pub fn detect_core(
     k: f32,
     threshold: f32,
 ) -> Result<Vec<f32>, String> {
-    let pixels = validate(rgba, width, height, diameter, k, threshold)?;
-    let signal = ImageBuffer::from_fn(width, height, |x, y| {
-        let offset = ((y * width + x) as usize) * 4;
-        let red = rgba[offset] as f32 / 255.0;
-        let other = rgba[offset + 1].max(rgba[offset + 2]) as f32 / 255.0;
-        Luma([(red - other).max(0.0)])
-    });
-    let (sigma_one, sigma_two) = target_sigmas(diameter / 2.0, k);
-    let first = gaussian_blur_f32(&signal, sigma_one);
-    let second = gaussian_blur_f32(&signal, sigma_two);
-    let mut response = Vec::with_capacity(pixels);
-    for (a, b) in first.pixels().zip(second.pixels()) {
-        response.push(a[0] - b[0]);
-    }
+    validate(rgba, width, height, diameter, k, threshold)?;
+    let signal = red_signal(rgba, width, height);
+    let response = dog_response(&signal, diameter, k)?;
+    Ok(find_centers(&response, width, height, diameter, threshold))
+}
 
+fn find_centers(
+    response: &[f32],
+    width: u32,
+    height: u32,
+    diameter: f32,
+    threshold: f32,
+) -> Vec<f32> {
     let mut candidates = Vec::new();
     for y in 0..height {
         for x in 0..width {
             let score = response[(y * width + x) as usize];
-            if score >= threshold && has_no_stronger_neighbor(&response, width, height, x, y, score)
+            if score >= threshold && has_no_stronger_neighbor(response, width, height, x, y, score)
             {
                 candidates.push(Candidate { x, y, score });
             }
@@ -152,6 +192,37 @@ pub fn detect_core(
     for point in accepted {
         output.extend([point.x as f32, point.y as f32]);
     }
+    output
+}
+
+/// Return tightly packed DoG grayscale and original-threshold-mask preview planes.
+pub fn preview_core(
+    rgba: &[u8],
+    width: u32,
+    height: u32,
+    diameter: f32,
+    k: f32,
+    threshold: f32,
+) -> Result<Vec<u8>, String> {
+    let pixels = validate(rgba, width, height, diameter, k, threshold)?;
+    let signal = red_signal(rgba, width, height);
+    let response = dog_response(&signal, diameter, k)?;
+    let (minimum, maximum) = response.iter().copied().fold(
+        (f32::INFINITY, f32::NEG_INFINITY),
+        |(minimum, maximum), value| (minimum.min(value), maximum.max(value)),
+    );
+    let mut output = vec![0; pixels * 2];
+    if maximum > minimum {
+        let scale = 255.0 / (maximum - minimum);
+        for (index, value) in response.iter().copied().enumerate() {
+            output[index] = ((value - minimum) * scale).round() as u8;
+            output[pixels + index] = if value >= threshold { 255 } else { 0 };
+        }
+    } else {
+        for (index, value) in response.iter().copied().enumerate() {
+            output[pixels + index] = if value >= threshold { 255 } else { 0 };
+        }
+    }
     Ok(output)
 }
 
@@ -165,6 +236,19 @@ pub fn detect(
     threshold: f32,
 ) -> Result<Vec<f32>, JsValue> {
     detect_core(rgba, width, height, diameter, k, threshold)
+        .map_err(|error| JsValue::from_str(&error))
+}
+
+#[wasm_bindgen]
+pub fn preview(
+    rgba: &[u8],
+    width: u32,
+    height: u32,
+    diameter: f32,
+    k: f32,
+    threshold: f32,
+) -> Result<Vec<u8>, JsValue> {
+    preview_core(rgba, width, height, diameter, k, threshold)
         .map_err(|error| JsValue::from_str(&error))
 }
 
@@ -219,5 +303,42 @@ mod tests {
             assert!(detect_core(&[0; 4], 1, 1, 8.0, 3.0, threshold).is_err());
         }
         assert!(detect_core(&[0; 4], 1, 1, 8.0, 3.0, 0.00002).is_ok());
+    }
+
+    #[test]
+    fn preview_preserves_raw_threshold_response() {
+        let (width, height) = (32, 32);
+        let image = pixel_image(width, height, &[(16, 16)]);
+        let threshold = 0.01;
+        let preview = preview_core(&image, width, height, 8.0, 3.0, threshold).unwrap();
+        let pixels = (width * height) as usize;
+        let signal = ImageBuffer::from_fn(width, height, |x, y| {
+            let offset = ((y * width + x) as usize) * 4;
+            let red = image[offset] as f32 / 255.0;
+            let other = image[offset + 1].max(image[offset + 2]) as f32 / 255.0;
+            Luma([(red - other).max(0.0)])
+        });
+        let (sigma_one, sigma_two) = target_sigmas(4.0, 3.0);
+        let first = gaussian_blur_f32(&signal, sigma_one);
+        let second = gaussian_blur_f32(&signal, sigma_two);
+        let expected_mask: Vec<u8> = first
+            .pixels()
+            .zip(second.pixels())
+            .map(|(a, b)| if a[0] - b[0] >= threshold { 255 } else { 0 })
+            .collect();
+
+        assert_eq!(preview.len(), pixels * 2);
+        assert_eq!(&preview[pixels..], expected_mask.as_slice());
+        assert!(preview[..pixels].iter().any(|&value| value > 0));
+        assert!(expected_mask.contains(&0) && expected_mask.contains(&255));
+    }
+
+    #[test]
+    fn preview_blank_and_invalid_inputs() {
+        let blank = vec![0; 4 * 4 * 4];
+        let preview = preview_core(&blank, 4, 4, 8.0, 3.0, 0.01).unwrap();
+        assert!(preview.iter().all(|&value| value == 0));
+        assert!(preview_core(&blank, 4, 4, 8.0, 3.0, 0.00001).is_err());
+        assert!(preview_core(&blank, 0, 4, 8.0, 3.0, 0.01).is_err());
     }
 }

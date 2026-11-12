@@ -10,6 +10,8 @@ origin belongs there too. Rules: [REPO_STYLE.md](REPO_STYLE.md).
 
 - I want a GitHub Pages tool that lets researchers upload propidium-iodide images and
   count dead cells using a TypeScript frontend and Rust/Wasm processing backend.
+- Keep `main.ts` focused on orchestration; split substantial responsibilities into
+  cohesive modules before the entry point approaches the source-file line limit.
 - Support single-image testing and batch processing of an entire 96-well plate image set
   with CSV download. The count should be automatic.
 - Use approximate cell size with a Difference of Gaussians filter. From experience, k
@@ -17,6 +19,8 @@ origin belongs there too. Rules: [REPO_STYLE.md](REPO_STYLE.md).
 - Treat my related DoG Picker paper as relevant method evidence. My human calibration counts
   are A101 332, A501 362, C601 270, E401 450, F201 1050, and H501 2997.
 - I want to compare settings on one image before applying the selected setting to a batch.
+- Measure whether interface work would be faster in Rust/Wasm, and port the parts
+  that show a useful improvement.
 - I want more of a Design of Experiments approach, with a more orthogonal factorial design
   that covers more parameter space and better values.
 - Thresholds below 0.001 may work in some cases.
@@ -28,6 +32,9 @@ origin belongs there too. Rules: [REPO_STYLE.md](REPO_STYLE.md).
   make Compare settings the recommended first action. Default to 15-25 runs and allow up to 100.
 
 - Give the interface a dark look with an ode to Red Dead Redemption.
+- The program's name is "Red Dead Cell Counter," matching the theme of "Red Dead Redemption."
+- Keep the workbench header short so researchers reach the image and controls higher on the page.
+- Single-image and batch processing should be different modes so the workflow is obvious.
 - Make the theme more Wild West, with a saloon entrance before image loading, wanted
   posters, wood, horses, a longhorn cattle skull, and saguaro cacti.
 
@@ -36,5 +43,9 @@ origin belongs there too. Rules: [REPO_STYLE.md](REPO_STYLE.md).
 - Compare settings should give more feedback; use the human interaction expert skill to improve it.
 
 - Zoom must magnify enough to inspect individual detection picks.
+- Support click-and-drag image scrolling to navigate between particles.
+- Show Raw, DoG, and Threshold image views, with tabs at the top of the image viewer.
+- Use UI/UX and human-interaction assessment to improve the interface, and implement
+  the useful changes without waiting for my approval.
 
 - Include mean, median, and standard deviation of comparison Counts in the long summary as possible count estimates.

@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>PI Dead Cell Counter</title>
+    <title>Red Dead Cell Counter</title>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
@@ -39,80 +39,102 @@
       <header class="counter-header">
         <img class="header-skull" src="assets/longhorn_skull.svg" alt="" width="260" height="140" />
         <div class="header-copy">
-          <p class="eyebrow">THE SALOON / PROPIDIUM IODIDE ANALYSIS</p>
-          <h1 id="counter-title" tabindex="-1">Dead cell counter</h1>
+          <h1 id="counter-title" tabindex="-1">Red Dead Cell Counter</h1>
           <p>Count red PI-positive cells locally in your browser.</p>
         </div>
       </header>
-      <section class="controls" aria-label="Analysis controls">
-        <label class="file-picker" for="images"
-          >Choose images<input id="images" type="file" accept="image/jpeg,image/png" multiple
-        /></label>
-        <label
-          >Cell diameter (px)<input
-            id="diameter"
-            type="number"
-            min="2"
-            max="200"
-            step="any"
-            value="10.00"
-        /></label>
-        <label>DoG k<input id="k" type="number" min="1.1" max="8" step="any" value="4.00" /></label>
-        <label
-          >Response threshold<input
-            id="threshold"
-            type="number"
-            min="0.00002"
-            step="0.00001"
-            value="0.10000"
-          />
-          <small>Raw DoG response, not a percent. It must be strictly greater than 0.00001.</small>
-        </label>
-        <label
-          >Comparison runs<input
-            id="comparison-runs"
-            type="number"
-            min="15"
-            max="100"
-            step="1"
-            value="21"
-          />
-        </label>
-        <button id="compare" type="button">Compare settings</button>
-        <button id="analyze" type="button">Analyze images</button>
-        <button id="analyze-selected" type="button">Analyze selected image</button>
-        <button id="auto-tune-batch" type="button">Auto-tune and analyze batch</button>
-        <button id="cancel" type="button" disabled>Cancel</button>
-        <button id="download" type="button" disabled>Download CSV</button>
-      </section>
-      <ol class="comparison-steps" aria-label="Recommended analysis steps">
-        <li>Choose image files and select one from the count ledger.</li>
-        <li>Compare settings to inspect counts and the detection overlay.</li>
-        <li>Analyze the batch, then download the CSV ledger.</li>
-      </ol>
-      <p id="status" role="status">Choose one or more JPEG or PNG images.</p>
-      <section class="workspace">
-        <div class="image-panel">
-          <div class="image-tools">
-            <label><input id="markers" type="checkbox" checked /> Show detections</label
-            ><label
-              >Zoom <input id="zoom" type="range" min="25" max="6400" step="any" value="100" />
-              <span id="zoom-value">100%</span></label
-            ><button id="actual-pixels" type="button">Actual pixels</button
-            ><button id="fit-image" type="button">Fit image</button>
-          </div>
-          <div id="canvas-wrap" tabindex="0" role="region" aria-label="Image inspection viewport">
-            <div id="empty-image" class="empty-image">
-              <img src="assets/longhorn_skull.svg" alt="" width="260" height="140" />
-              <h2>No cells on the board</h2>
-              <p>Choose JPEG or PNG images, then analyze to reveal the detections.</p>
-            </div>
-            <canvas id="image" aria-label="Selected image with detected cells" hidden></canvas>
-          </div>
+      <fieldset class="workflow-switch">
+        <legend id="workflow-label" class="eyebrow">ANALYSIS MODE</legend>
+        <div class="workflow-options">
+          <label class="workflow-option"
+            ><input id="single-mode" type="radio" name="analysis-mode" value="single" checked />
+            <span>Single image</span></label
+          >
+          <label class="workflow-option"
+            ><input id="batch-mode" type="radio" name="analysis-mode" value="batch" />
+            <span>Batch</span></label
+          >
         </div>
-        <div class="results-panel">
+        <p id="workflow-help">Tune, inspect, and count one selected image.</p>
+      </fieldset>
+      <section class="controls" aria-label="Analysis controls">
+        <section class="control-group image-choice" aria-labelledby="images-step">
+          <p id="images-step" class="control-step">1. Images</p>
+          <label class="file-picker" for="images"
+            ><span id="file-picker-label">Choose image</span
+            ><input id="images" type="file" accept="image/jpeg,image/png"
+          /></label>
+          <p id="image-selection-summary">No images selected.</p>
+          <small>JPEG or PNG. Your images stay on this device.</small>
+        </section>
+        <section class="control-group tuning" aria-labelledby="tuning-step">
+          <p id="tuning-step" class="control-step">2. Tune and inspect</p>
+          <div class="setting-fields">
+            <label
+              >Cell diameter (px)<input
+                id="diameter"
+                type="number"
+                min="2"
+                max="200"
+                step="any"
+                value="10.00"
+            /></label>
+            <label
+              >DoG k<input id="k" type="number" min="1.1" max="8" step="any" value="4.00"
+            /></label>
+            <label
+              >Response threshold<input
+                id="threshold"
+                type="number"
+                min="0.00002"
+                step="0.00001"
+                value="0.10000"
+              />
+              <small>Raw DoG response, not a percent.</small>
+            </label>
+            <label
+              >Comparison runs<input
+                id="comparison-runs"
+                type="number"
+                min="15"
+                max="100"
+                step="1"
+                value="21"
+            /></label>
+          </div>
+          <div class="control-actions">
+            <button id="compare" type="button" data-workflow-only="single">Compare settings</button>
+            <button id="analyze-selected" type="button" data-workflow-only="single">
+              Analyze selected image
+            </button>
+            <button id="tune-selected" type="button" data-workflow-only="batch">
+              Tune selected image
+            </button>
+          </div>
+        </section>
+        <section
+          class="control-group batch"
+          aria-labelledby="batch-step"
+          data-workflow-only="batch"
+        >
+          <p id="batch-step" class="control-step">3. Count and export</p>
+          <p class="batch-note">Automatic comparison uses the selected image for tuning.</p>
+          <div class="control-actions">
+            <button id="analyze" type="button">Analyze images</button>
+            <button id="auto-tune-batch" type="button">Compare, then analyze batch</button>
+            <button id="download" type="button" disabled>Download CSV</button>
+          </div>
+        </section>
+      </section>
+      <div class="status-line">
+        <p id="status" role="status">Choose a JPEG or PNG image.</p>
+        <button id="cancel" type="button" disabled hidden>Cancel</button>
+      </div>
+      <section class="workspace">
+        <div class="results-panel" data-workflow-only="batch">
           <p class="eyebrow">THE BOUNTY BOARD</p>
           <h2>Count ledger</h2>
+          <p id="batch-summary">No images selected.</p>
           <table>
             <thead>
               <tr>
@@ -123,14 +145,96 @@
             </thead>
             <tbody id="rows"></tbody>
           </table>
+          <p id="ledger-empty">Your image counts will appear here.</p>
+        </div>
+        <div class="image-panel">
+          <div class="viewer-heading">
+            <div>
+              <p class="eyebrow">IMAGE INSPECTION</p>
+              <h2 id="selected-image-name" tabindex="-1">Image inspection</h2>
+              <p id="selected-image-details">Choose an image to inspect it.</p>
+            </div>
+            <p class="viewer-count">
+              <strong id="selected-image-count">--</strong
+              ><span id="selected-count-label">cells detected</span>
+            </p>
+          </div>
+          <div class="image-views" role="tablist" aria-label="Image view">
+            <button
+              id="raw-view"
+              type="button"
+              role="tab"
+              aria-selected="true"
+              aria-controls="image-view-panel"
+              tabindex="0"
+              data-view="raw"
+            >
+              Raw
+            </button>
+            <button
+              id="dog-view"
+              type="button"
+              role="tab"
+              aria-selected="false"
+              aria-controls="image-view-panel"
+              tabindex="-1"
+              data-view="dog"
+            >
+              DoG
+            </button>
+            <button
+              id="threshold-view"
+              type="button"
+              role="tab"
+              aria-selected="false"
+              aria-controls="image-view-panel"
+              tabindex="-1"
+              data-view="threshold"
+            >
+              Threshold
+            </button>
+          </div>
+          <div id="image-view-panel" role="tabpanel" aria-labelledby="raw-view">
+            <div class="image-tools">
+              <label><input id="markers" type="checkbox" checked /> Show detections</label
+              ><label
+                >Zoom <input id="zoom" type="range" min="25" max="6400" step="any" value="100" />
+                <span id="zoom-value">100%</span></label
+              ><button id="actual-pixels" type="button">Actual pixels</button
+              ><button id="fit-image" type="button">Fit image</button>
+            </div>
+            <div
+              id="canvas-wrap"
+              tabindex="0"
+              role="region"
+              aria-label="Image inspection viewport"
+              aria-describedby="image-navigation-help"
+            >
+              <div id="empty-image" class="empty-image">
+                <img src="assets/longhorn_skull.svg" alt="" width="260" height="140" />
+                <h2>No cells on the board</h2>
+                <p>Choose images, then compare settings to inspect the detections.</p>
+              </div>
+              <canvas id="image" aria-label="Selected image with detected cells" hidden></canvas>
+            </div>
+            <p id="image-navigation-help">
+              Drag the image to pan when zoomed. Arrow keys also scroll.
+            </p>
+            <p id="image-view-status" aria-live="polite" aria-atomic="true">
+              Raw original RGB image.
+            </p>
+          </div>
         </div>
       </section>
       <section id="comparison" class="comparison" aria-labelledby="comparison-heading">
         <h2 id="comparison-heading">Setting comparison</h2>
-        <p id="comparison-summary">
-          Select an image, then compare a 15-point central-composite design of cell-size, k, and
-          threshold settings.
-        </p>
+        <details class="comparison-details" data-workflow-only="single">
+          <summary>Design details and parameter ranges</summary>
+          <p id="comparison-summary">
+            Select an image, then compare a 15-point central-composite design of cell-size, k, and
+            threshold settings.
+          </p>
+        </details>
         <div class="comparison-feedback" aria-label="Comparison feedback">
           <label id="comparison-progress-label" for="comparison-progress"
             >Comparison progress</label
@@ -144,8 +248,24 @@
           <button id="cancel-comparison" type="button" disabled>Cancel comparison</button>
           <p id="comparison-recommendation"></p>
           <p id="comparison-applied"></p>
+          <div class="comparison-actions">
+            <button id="inspect-applied" type="button" disabled>Inspect applied detections</button>
+            <button id="use-batch-settings" type="button" data-workflow-only="single" disabled>
+              Use settings for batch
+            </button>
+          </div>
         </div>
-        <table>
+        <div
+          id="comparison-highlights"
+          class="comparison-highlights"
+          hidden
+          aria-label="Comparison count statistics"
+        >
+          <p><span>Mean</span><strong id="comparison-mean">--</strong></p>
+          <p><span>Median</span><strong id="comparison-median">--</strong></p>
+          <p><span>Std deviation</span><strong id="comparison-sd">--</strong></p>
+        </div>
+        <table data-workflow-only="single">
           <thead>
             <tr>
               <th>Diameter</th>

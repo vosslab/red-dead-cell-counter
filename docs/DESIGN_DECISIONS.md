@@ -22,6 +22,28 @@ authoritative code or contract document, rather than a person.
 **Owner.** <the authoritative code or contract doc>
 ```
 
+### Frontend module ownership
+
+**Decision.** Keep `src/main.ts` focused on startup and event wiring. The workflow
+controller owns the selected image, results, active/cancelled state, and comparison
+state. It coordinates two presentation modules and one worker client.
+
+**Why.** The 958-line entry point mixed analysis, rendering, transport, and export,
+making unrelated changes difficult to review and approaching the source-file limit.
+
+**Consequence.** `counter_controller.ts` coordinates upload, single/batch analysis,
+comparison, and applying results. `detector_client.ts` owns browser decoding, RGBA
+extraction, worker lifetime, and request/reply handling. `image_workspace.ts` owns
+the ledger, image summary, overlays, zoom, and CSV. `comparison_panel.ts` owns
+comparison rendering and progress/statistical feedback. `detector_settings.ts`
+owns reading, rounding, and validation of settings; `count_statistics.ts` owns
+count statistics and formatting. `counter_elements.ts` catalogs DOM handles.
+Types live with their owning modules. This adds no framework, event bus, or dependency.
+The existing `image_viewer.ts` and `workflow_modes.ts` retain their responsibilities.
+
+**Owner.** `src/main.ts`, `src/counter_controller.ts`, `src/detector_client.ts`,
+`src/image_workspace.ts`, and `src/comparison_panel.ts`
+
 ### Browser-local image processing
 
 **Decision.** Decode JPEG and PNG images in the browser and process their RGBA pixels in
@@ -33,7 +55,27 @@ are large enough that processing must not freeze the user interface.
 **Consequence.** Uploaded images do not leave the browser. The worker owns sequential batch
 processing and returns compact center-coordinate results.
 
-**Owner.** `src/main.ts` and `src/worker.ts`
+**Owner.** `src/detector_client.ts`, `src/counter_controller.ts`, and `src/worker.ts`
+
+### Prepared images during comparison
+
+**Decision.** Transfer image pixels once per comparison worker. Rust owns the prepared
+red signal and retains only the most recent diameter/k DoG response. Threshold-only
+trials reuse that response; changes to diameter/k replace it before computing the next.
+
+**Why.** Copying an 18-megapixel RGBA image for every comparison trial wastes memory
+bandwidth and repeats signal preparation and Gaussian filtering without changing data.
+
+**Consequence.** Requests remain sequential, with individual results, progress, Apply,
+and cancellation. A new image replaces and frees the previous prepared image; a bad
+replacement leaves no stale image available. Worker termination releases the session.
+The signal and latest response retain 8 bytes per pixel together, plus temporary blur
+buffers during processing; there is no cache of multiple images or scale responses.
+The standalone detector and preview exports keep their existing behavior. Browser DOM,
+decoding, and Canvas operations remain in TypeScript. Measurements and the boundary
+contract are in [WASM_PERFORMANCE.md](WASM_PERFORMANCE.md).
+
+**Owner.** `rust/src/prepared_image.rs`, `src/worker.ts`, and `src/counter_controller.ts`
 
 ### Matched Difference of Gaussians detector
 
@@ -83,7 +125,8 @@ dimensions, buffer length, and numeric detector inputs.
 
 **Decision.** Open on an illustrated saloon with one Enter saloon button. Keep the
 counter hidden until entry, then focus its heading. Use original SVG art, CSS wood
-surfaces, and aged-paper wanted posters and results.
+surfaces, and aged-paper wanted posters and results. Use the full product name,
+Red Dead Cell Counter, in the browser title, entrance, workbench, and README heading.
 
 **Why.** The requested Western theme needs a recognizable place and materials.
 Local assets keep the static tool self-contained.
@@ -93,3 +136,49 @@ Decorative art stays silent to assistive technology, door motion honors reduced
 motion, and microscopy images retain a neutral dark viewing surface.
 
 **Owner.** `src/index.html`, `src/style.css`, `src/assets/`, and `src/main.ts`
+
+### Raw, DoG, and threshold image inspection
+
+**Decision.** Offer Raw, DoG, and Threshold tabs above one shared image canvas.
+Raw displays the original RGB pixels. Rust generates a contrast-stretched grayscale
+DoG display and a binary mask from the original DoG response and the actual cutoff.
+
+**Why.** Researchers need to inspect what the filter and cutoff retain when tuning
+cell detection. The image views must agree with the count's processing settings.
+
+**Consequence.** Counted images use their stored applied settings; unprocessed images
+use valid rounded controls. Derived views retain the original pixel dimensions and
+share zoom and marker controls. Only the selected image's two byte-per-pixel planes
+are cached. File/settings changes invalidate that cache, and obsolete preview work
+is cancelled. Display contrast stretching does not affect thresholding or counts.
+Mouse and pen dragging pan the existing scroll viewport, with pointer capture and
+grab/grabbing cursors. Keyboard scrolling, scrollbars, and native touch gestures remain
+available; panning does not alter image coordinates, detection data, or zoom.
+
+**Owner.** `rust/src/lib.rs`, `src/worker.ts`, `src/image_viewer.ts`, and `src/image_workspace.ts`
+
+### Researcher workflow and result context
+
+**Decision.** Separate Single image tuning/inspection from Batch processing/export with
+an explicit mode selector, using shared files, settings, counts, and viewer state.
+Single image exposes Images and Tune and inspect; Batch adds Count and export.
+Use a compact workbench masthead with the full name, subtitle, and small skull.
+Keep Compare settings prominent, disable analysis until files exist, and place the
+selected filename, count, and applied settings directly above its image. Show comparison
+statistics before the detailed runs and offer a direct return to inspect applied picks.
+
+**Why.** The previous flat toolbar gave several actions similar emphasis, the large
+masthead displaced the work, and the count's filename and settings required consulting
+other panels. Editing controls must not suggest that an existing count has changed.
+
+**Consequence.** The ledger uses native filename buttons with a current-image state.
+The viewer labels stale controls while preserving the actual count's settings. Batch
+completion remains separate from single-image inspection. Technical design ranges stay
+available in a disclosure, alongside the complete run table and statistics footer.
+Mode switching preserves work and is disabled while processing. Explicit handoffs carry
+current settings to Batch or a selected batch image back to Single image. Batch auto-tuning
+retains visible comparison progress; detailed runs are inspected in Single image. See
+[WORKFLOW_MODES.md](WORKFLOW_MODES.md) for the task model and acceptance criteria.
+
+**Owner.** `src/workflow_modes.ts`, `src/index.html`, `src/style.css`,
+`src/counter_controller.ts`, `src/image_workspace.ts`, and `src/comparison_panel.ts`

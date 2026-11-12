@@ -4,7 +4,7 @@
 
 The comparison explores how detector counts respond to diameter, Gaussian ratio k, and
 response threshold on the same image. It is a deterministic numerical experiment, not
-15 independent biological measurements.
+independent biological measurements.
 
 The comparison accepts an integer run budget from 15 through 100; its default is 21. Its
 first 15 settings are a three-factor central composite design:
@@ -44,7 +44,7 @@ Diameter and k normally span half to twice the starting value; threshold spans o
 to four times the starting value. Near detector limits, the valid interval is bounded
 first and its center is recomputed as the geometric mean. The entire design is then
 generated inside that interval. Individual points are not clipped, which would distort
-the experimental geometry. The interface reports both the requested starting point and
+the experimental geometry. The interface reports both the processed starting point and
 the actual design center and ranges.
 
 Every generated setting uses the same displayed and executed value: diameter and k round to

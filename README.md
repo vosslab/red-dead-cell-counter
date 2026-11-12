@@ -1,4 +1,4 @@
-# red-dead-cell-counter
+# Red Dead Cell Counter
 
 Count red, propidium-iodide-positive cells in fluorescence images without uploading research data to a server. Researchers can compare detector settings, inspect marked cells, and export plate-sized batch counts entirely in the browser.
 
@@ -10,10 +10,14 @@ stay on your device.
 
 <!-- screenshots:begin (managed by screenshot-docs) -->
 ![Western saloon entrance with horses, saguaro cacti, a longhorn skull, and a wanted poster](docs/screenshots/saloon.webp)
-![Cell counter showing A501 detections, wood controls, and the paper count ledger](docs/screenshots/counter.webp)
+![Single image mode with A501's count, tuning controls, and the image viewer](docs/screenshots/counter.webp)
+![Batch mode with its file ledger, processing actions, and selected image inspection](docs/screenshots/batch.webp)
+![The same A501 cells in Raw, DoG, and Threshold views with shared zoom](docs/screenshots/viewer_views.webp)
+![A501 comparison showing mean, median, and SD highlights with applied settings and an inspection action](docs/screenshots/comparison.webp)
 <!-- screenshots:end -->
 
-- Inspect individual images with detection circles, fit-to-panel viewing, and zoom.
+- Inspect Raw, DoG, and Threshold image tabs with detection circles, shared zoom, and
+  click-and-drag panning. Arrow keys, scrollbars, and native touch scrolling also work.
 - Compare 21 settings by default, or choose 15-100 runs, with rounded parameters and grouped counts.
 - Auto-tune to the representative median run, or apply a comparison row yourself before batching.
 - Process plate-sized batches sequentially and download CSV counts, settings, and errors.
@@ -42,8 +46,8 @@ See [verification evidence](docs/VERIFICATION.md) for the current checks and the
 
 ## Try an image, then a batch
 
-1. Open the tool, select **Enter saloon**, and choose JPEG or PNG images.
-   Select a row to inspect that image.
+1. Open the tool and select **Enter saloon**. In **Single image**, choose a JPEG or PNG
+   image to tune and inspect.
 2. Start with **Compare settings**. The default 21 runs use a 15-point central composite
    design plus six inner-axis settings; **Comparison runs** accepts 15 through 100.
    Larger experiments add settings that spread coverage across the parameter range.
@@ -53,11 +57,19 @@ See [verification evidence](docs/VERIFICATION.md) for the current checks and the
    range, mean, median, and population standard deviation across successful settings.
    Mean, median, and SD also appear below the Count column. Choose **Apply** on another
    row to use that result instead.
-3. Inspect the marked image. Use **Analyze selected image** when you want to try a
+3. Inspect the marked image using the **Raw**, **DoG**, and **Threshold** tabs.
+   The DoG view stretches contrast for visibility; the threshold mask uses the original
+   response and applied cutoff. Use **Analyze selected image** when you want to try a
    particular setting directly.
-4. Choose **Analyze images** to apply the current settings to the entire selection, or
-   **Auto-tune and analyze batch** to compare the selected image first and then batch.
-5. Choose **Download CSV**. Every row records the settings actually used for that image.
+4. Select **Use settings for batch** or the **Batch** mode. Choose the images to process,
+   then **Analyze images** to apply the current settings to the entire selection. Or use
+   **Compare, then analyze batch** for an automatic comparison followed by processing.
+5. In Batch, choose **Download CSV**. Every row records the settings actually used for that
+   image. To retune a batch image, select its ledger row and choose **Tune selected image**.
+
+Mode changes preserve selected files, settings, and finished counts. Batch can also be
+used directly with the current settings, including a one-image CSV export. See the
+[workflow guide](docs/WORKFLOW_MODES.md) for mode behavior and handoffs.
 
 The comparison starts with eight factorial corners, six axial points, and one center.
 For three factors its axial distance is alpha = 8^(1/4). Diameter, k, and threshold use

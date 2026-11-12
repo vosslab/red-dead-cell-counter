@@ -1,5 +1,10 @@
 # Comparison feedback inspection
 
+The current interface separates Single image tuning/inspection from Batch processing
+and CSV export. [WORKFLOW_MODES.md](WORKFLOW_MODES.md) records the latest task model,
+handoffs, state-preservation rules, and acceptance checks. The sections below preserve
+the evidence and rationale from earlier inspection passes.
+
 ## Task and evidence scope
 
 Researchers compare detector settings on one microscopy image, decide which count and
@@ -47,6 +52,84 @@ and [W3C use of color](https://www.w3.org/WAI/WCAG22/Understanding/use-of-color.
 Implementation owner: UI/UX engineering (`src/main.ts`, `src/index.html`, `src/style.css`).
 No detector, scoring, or dependency changes are required.
 
+## Workbench workflow inspection
+
+The subsequent header-only refinement removes the workbench eyebrow and reduces title,
+skull, padding, and border sizes. This keeps the full name while bringing the viewer
+about 100 pixels higher at 1440 pixels wide. Six responsive renders, the entry/count/CSV
+checks, and a populated-counter accessibility scan passed; measurements are recorded in
+[VERIFICATION.md](VERIFICATION.md#compact-workbench-header).
+
+The later UI/UX pass used the same researcher scenario: enter the saloon, choose images,
+compare one, inspect its applied picks, analyze all selected images, and download CSV.
+Two independent agent inspections informed implementation and checked the result. There
+were no participant sessions; scores below are expert judgments about this task, not
+measured user performance. Desktop is the main research setting; narrow browser views
+must remain usable.
+
+Before implementation, the acceptance measures were: identify the current image and its
+count without consulting the ledger; distinguish applied settings from edited controls;
+return from comparison to inspection in one action; preserve the batch/CSV behavior;
+provide keyboard selection; and avoid page overflow at 320, 480, 768, and 1920 pixels.
+
+| Task step | Observed friction | Implemented acceptance check |
+| --- | --- | --- |
+| Choose images | Four analysis actions were enabled before any image existed. | Actions remain disabled until file selection; the visible Images stage names the selected file count. |
+| Tune | A flat toolbar gave single-image and batch actions similar emphasis. | Numbered groups place Compare settings in Tune and inspect, followed by Count and export. |
+| Inspect | Filename and count were only in the separate ledger. | Viewer heading shows filename, count, dimensions, and actual applied settings; edited controls produce an explicit stale-control cue. |
+| Select another image | Focusable table rows acted as custom buttons. | Native filename buttons expose the current image and retain keyboard focus after selection. |
+| Interpret comparison | Statistics appeared in prose and at the bottom of a long table. | Mean, median, and population SD also appear in three short highlights; values match the table footer. |
+| Apply and continue | Returning to the viewer required navigating back through the page. | Inspect applied detections scrolls to and focuses the current image heading. Applied feedback names the next batch action and scope. |
+| Finish batch | Individual rows lacked an overall completion summary. | The ledger reports counted, waiting, and failed totals while retaining per-image results and CSV. |
+
+The grouping follows [W3C information and relationships](https://www.w3.org/WAI/WCAG22/Understanding/info-and-relationships.html).
+Existing live status messages remain available without moving focus, following
+[W3C status messages](https://www.w3.org/WAI/WCAG22/Understanding/status-messages.html).
+Inspection and analysis controls use a 44-pixel minimum target, following the enhanced
+[W3C target-size guidance](https://www.w3.org/WAI/WCAG22/Understanding/target-size-enhanced.html).
+
+Heuristic scores use 0 = critical issue, 4 = no identified issue in the inspected task.
+
+| Heuristic | Before | After | Evidence or remaining limit |
+| --- | --- | --- | --- |
+| Visibility of status | 2 | 4 | Selected count/context and counted/waiting/failed ledger summary. |
+| Match with researcher vocabulary | 3 | 3 | Scientific labels retained; technical ranges available in a disclosure. |
+| User control | 3 | 3 | Cancellation, per-run Apply, and manual analysis retained. |
+| Consistency | 3 | 4 | Native buttons replace custom keyboard table-row behavior. |
+| Error prevention | 2 | 3 | No-image actions disabled; numeric validation retained. |
+| Recognition over recall | 2 | 4 | Filename and applied settings stay with the viewed count. |
+| Efficiency | 3 | 4 | One-action return from comparison to inspection. |
+| Minimalist presentation | 2 | 3 | Smaller masthead, grouped controls, and collapsed technical ranges; full results remain long. |
+| Error recovery | 3 | 3 | Existing error/cancel coverage passes; image context includes a retry cue. |
+| Help and guidance | 3 | 3 | Stage names and local instructions replace the repeated step list. |
+
+Observed validation:
+
+- All 17 Chromium checks passed, including all eight originals, comparison and batch CSV,
+  cancellation, 100 runs, preview tabs, zoom, and the new keyboard workflow. After the
+  final CSS changes, all four affected workflow/viewer checks passed again.
+- Type checking, lint, formatting, and six experiment-design checks passed. The focused
+  repository documentation/source checks passed 285 cases.
+- At 1440 x 1000, the masthead shrank from 314 to 182 pixels and the viewer started at
+  y=558 rather than y=729, while retaining 44-pixel controls.
+- Axe-core 4.14.0 reported zero violations with the requested WCAG A/AA tags in both
+  the baseline empty/selected states and the final empty/selected/completed states.
+  This is inspected-state automated evidence, not full accessibility certification.
+- Final renders had no page overflow at all four target widths, including a long
+  filename at 320 pixels. Keyboard selection and return-to-inspection focus passed.
+  Additional 900/1024-pixel checks exposed control-strip overflow; moving the control
+  groups into one column below 1100 pixels fixed it. Final 900/1024/1100/1280 checks
+  all matched the viewport width.
+  The hovered ledger button retained dark text on paper rather than inheriting the
+  generic dark button background. No browser JavaScript errors occurred.
+- Screenshots and raw scan/layout evidence are in
+  `/private/tmp/red-cell-experiment/ux_before/` and `ux_after/`; updated overview and
+  comparison WebP images are in `docs/screenshots/`.
+
+The 96-image stress run, other browser engines, screen-reader participant testing, and
+the deployed Pages revision were not rechecked in this pass. Detector calculations
+were unchanged by this UI work.
+
 ## Pick inspection and zoom
 
 A further user report identified insufficient zoom for inspecting individual picks. The
@@ -56,6 +139,16 @@ range and provide Actual pixels and Fit image actions. The zoom readout must dis
 fit percentage from original-pixel magnification. Verification: actual-pixel view displays
 one CSS pixel per image pixel; high zoom exceeds that scale, and Fit image restores a
 bounded overview without expanding the page horizontally.
+
+Click-and-drag panning extends the same inspection task without another mode or
+toolbar. The image follows the mouse or pen while the left button is held, including
+outside the viewport through pointer capture. Release, lost capture, cancellation,
+window blur, and file replacement end the drag. Grab/grabbing cursors and a short
+navigation hint explain the interaction. The viewport remains keyboard-focusable;
+scrollbars and native touch gestures remain available. A focused real-image-crop
+browser check verifies pan direction, pointer capture, release/blur recovery, retained
+position across image tabs, and keyboard scrolling. Physical touch hardware was not
+tested.
 
 ## Count statistics
 
@@ -115,3 +208,24 @@ The method remains a cognitive walkthrough with browser checks, not a participan
 usability study. Implementation belongs to the UI/UX worker; the experimental-design
 worker owns run selection and rounding. Browser verification checks the complete
 image-to-comparison-to-CSV handoff and a 100-run real-image crop.
+
+Observed outcome: all 14 Chromium workflows passed, including the 100-run real-image
+crop and numerical agreement between applied values and CSV. Full-resolution H501
+produced a visible footer with mean 3,060.4, median 3,021.0, and SD 872.6 over 21 runs.
+The final completed-comparison axe scan found no requested A/AA violations. Gold-label
+contrast on the recommended row was repaired from 3.97:1 to 5.52:1. Desktop and mobile
+inspection found no page overflow after correcting the loaded-image panel's minimum size.
+
+## Inspecting the processing stages
+
+Raw, DoG, and Threshold tabs expose the same selected image with shared zoom and
+marker controls. The caption gives the applied diameter, k, and cutoff for derived
+views. Counted images keep their stored settings; changing controls prepares a new
+analysis without relabeling an existing result. A new selection starts on Raw.
+
+Arrow keys move focus between tabs; Enter or Space activates the focused tab.
+Activation is manual because the first derived image requires worker processing.
+Loading feedback stays beside the viewer, and stale work is cancelled when switching
+sources or returning to Raw. The binary mask uses the original DoG values rather
+than the contrast-stretched display. Browser checks verify these transitions and
+native/Wasm pixel-plane parity. This remains agent inspection and automated evidence.
