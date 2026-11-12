@@ -1,6 +1,6 @@
 {
-	"name": "__REPO_NAME__",
-	"version": "__REPO_VERSION__",
+	"name": "red-dead-cell-counter",
+	"version": "2026.11.0",
 	"type": "module",
 	"private": true,
 	"scripts": {
