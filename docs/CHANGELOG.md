@@ -2,6 +2,14 @@
 
 ## 2026-11-12
 
+### Behavior or Interface Changes
+
+- Reworked the README for biology students with a browser-first H501 walkthrough,
+  plain-language detector controls, an inspection exercise, and a separate visual tour.
+  Kept calibration evidence and moved developer setup into an optional disclosure.
+- Refreshed five real-image interface screenshots and added a reproducible capture
+  harness. The README now leads with a zoomed H501 count and detection overlay.
+
 ### Fixes and Maintenance
 
 - Reduced `src/main.ts` from 958 lines to a 36-line startup and event-wiring module.

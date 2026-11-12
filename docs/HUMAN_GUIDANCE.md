@@ -12,6 +12,8 @@ origin belongs there too. Rules: [REPO_STYLE.md](REPO_STYLE.md).
   count dead cells using a TypeScript frontend and Rust/Wasm processing backend.
 - Keep `main.ts` focused on orchestration; split substantial responsibilities into
   cohesive modules before the entry point approaches the source-file line limit.
+- Make the README and screenshots inviting to new biology students so they want to
+  try the software.
 - Support single-image testing and batch processing of an entire 96-well plate image set
   with CSV download. The count should be automatic.
 - Use approximate cell size with a Difference of Gaussians filter. From experience, k
