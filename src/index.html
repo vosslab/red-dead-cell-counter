@@ -55,19 +55,41 @@
             min="2"
             max="200"
             step="any"
-            value="10"
+            value="10.00"
         /></label>
-        <label>DoG k<input id="k" type="number" min="1.1" max="8" step="any" value="4" /></label>
+        <label>DoG k<input id="k" type="number" min="1.1" max="8" step="any" value="4.00" /></label>
         <label
-          >Response threshold<input id="threshold" type="number" min="0" step="any" value="0.10"
-        /></label>
+          >Response threshold<input
+            id="threshold"
+            type="number"
+            min="0.00002"
+            step="0.00001"
+            value="0.10000"
+          />
+          <small>Raw DoG response, not a percent. It must be strictly greater than 0.00001.</small>
+        </label>
+        <label
+          >Comparison runs<input
+            id="comparison-runs"
+            type="number"
+            min="15"
+            max="100"
+            step="1"
+            value="21"
+          />
+        </label>
+        <button id="compare" type="button">Compare settings</button>
         <button id="analyze" type="button">Analyze images</button>
         <button id="analyze-selected" type="button">Analyze selected image</button>
-        <button id="compare" type="button">Compare settings</button>
         <button id="auto-tune-batch" type="button">Auto-tune and analyze batch</button>
         <button id="cancel" type="button" disabled>Cancel</button>
         <button id="download" type="button" disabled>Download CSV</button>
       </section>
+      <ol class="comparison-steps" aria-label="Recommended analysis steps">
+        <li>Choose image files and select one from the count ledger.</li>
+        <li>Compare settings to inspect counts and the detection overlay.</li>
+        <li>Analyze the batch, then download the CSV ledger.</li>
+      </ol>
       <p id="status" role="status">Choose one or more JPEG or PNG images.</p>
       <section class="workspace">
         <div class="image-panel">
@@ -136,6 +158,7 @@
             </tr>
           </thead>
           <tbody id="comparison-rows"></tbody>
+          <tfoot id="comparison-statistics" hidden></tfoot>
         </table>
       </section>
     </main>

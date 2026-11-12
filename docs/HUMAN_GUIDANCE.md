@@ -20,6 +20,12 @@ origin belongs there too. Rules: [REPO_STYLE.md](REPO_STYLE.md).
 - I want more of a Design of Experiments approach, with a more orthogonal factorial design
   that covers more parameter space and better values.
 - Thresholds below 0.001 may work in some cases.
+- Investigate alternatives to a fixed threshold, including picking at several thresholds
+  and merging results; use my DoG Picker paper and retain thresholds below 0.001.
+- Round settings used for processing and CSV as well as display: diameter and k to
+  two decimal places, threshold to five. Require threshold strictly greater than 0.00001.
+- Use comma-separated counts, include mean and median in the comparison table, and
+  make Compare settings the recommended first action. Default to 15-25 runs and allow up to 100.
 
 - Give the interface a dark look with an ode to Red Dead Redemption.
 - Make the theme more Wild West, with a saloon entrance before image loading, wanted

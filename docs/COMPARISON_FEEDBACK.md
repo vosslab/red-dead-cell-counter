@@ -89,7 +89,29 @@ Verification independently calculates all three statistics from the table's Coun
 ## DoE update
 
 The 27-point grid and its axis-line stability explanation above describe the previous
-version. Comparison now uses a 15-point log-space central composite design. Feedback
+version. Comparison now starts with a 15-point log-space central composite design,
+augmented to 21 runs by default and up to 100 on request. Feedback
 identifies factorial/axial/center runs, reports the actual design center and parameter
 ranges, and explains which evaluated median-count run is applied. Statistics remain
 descriptive across the tested settings. See [experimental design](EXPERIMENT_DESIGN.md).
+
+## First-use workflow and readable results
+
+The next inspection follows a new researcher's first session: enter the saloon,
+choose images, compare settings, inspect picks and summary counts, then analyze a
+batch and export CSV. The user's screenshot exposed excessive numeric precision,
+unformatted large counts, missing table statistics, and a secondary visual treatment
+for the recommended first action.
+
+| Task step | Guideline | Acceptance criterion |
+| --- | --- | --- |
+| Find the first action | Recognition over recall and visual hierarchy | Compare settings follows image selection and is the primary button; a short visible sequence explains comparison, inspection, and batching. |
+| Choose experiment length | User control and visible system status | Default 21 runs; accept whole-number budgets 15 through 100, show the actual total, and retain cancellation. |
+| Read a row | Match displayed precision to the task | Diameter and k use two decimals, thresholds five, and counts use thousands separators. Actual processing and CSV use the same rounded settings. |
+| Compare counts | Reduce memory demands | Mean, median, and population SD appear in the Count column of the table footer as well as the long summary; failures are excluded and partial results are labeled. |
+| Enter a tiny cutoff | Prevent invalid inputs | Reject threshold <=0.00001; five-decimal rounding makes 0.00002 the smallest supported setting. |
+
+The method remains a cognitive walkthrough with browser checks, not a participant
+usability study. Implementation belongs to the UI/UX worker; the experimental-design
+worker owns run selection and rounding. Browser verification checks the complete
+image-to-comparison-to-CSV handoff and a 100-run real-image crop.

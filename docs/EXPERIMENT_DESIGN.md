@@ -6,8 +6,8 @@ The comparison explores how detector counts respond to diameter, Gaussian ratio 
 response threshold on the same image. It is a deterministic numerical experiment, not
 15 independent biological measurements.
 
-The former 3 x 3 x 3 sampler was a full factorial design with 27 settings. The current
-comparison uses 15 unique points from a three-factor central composite design:
+The comparison accepts an integer run budget from 15 through 100; its default is 21. Its
+first 15 settings are a three-factor central composite design:
 
 - One center point.
 - Eight factorial points at all combinations of coded -1 and +1.
@@ -15,8 +15,16 @@ comparison uses 15 unique points from a three-factor central composite design:
 
 Alpha is 8^(1/4), approximately 1.68179. Parameters are coded logarithmically. This gives
 five levels per parameter, samples farther along each axis, and preserves orthogonal
-coded linear main effects. The quadratic terms are not all mutually orthogonal. The
-geometry supports a full quadratic response model, but no fitted optimizer is shipped.
+coded linear main effects for the 15-run core. The quadratic terms are not all mutually
+orthogonal. The geometry supports a full quadratic response model, but no fitted optimizer
+is shipped.
+
+The default adds six inner-axis points (coded plus/minus 1 on one axis and zero on the
+others), labelled `Supplemental`. These make the default 21 runs. They retain useful
+one-factor views but make the full 21-run collection neither rotatable nor fully
+orthogonal. Budgets above 21 append deterministic Halton-sequence antithetic pairs inside
+the same coded cube. Those points are also `Supplemental`: they improve coverage but are
+not a claim of a standard rotatable or orthogonal design for arbitrary budgets.
 
 The construction follows the [NIST central composite design reference](https://www.itl.nist.gov/div898/handbook/pri/section3/pri3361.htm).
 Repeated center runs are omitted because this detector is deterministic; repeating the
@@ -28,9 +36,9 @@ Default requested starting point: diameter 10, k 4, threshold 0.10.
 
 | Parameter | Axial low | Factorial low | Center | Factorial high | Axial high |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Diameter px | 5 | 6.6223 | 10 | 15.1006 | 20 |
-| k | 2 | 2.6489 | 4 | 6.0402 | 8 |
-| Threshold | 0.025 | 0.043854 | 0.10 | 0.228027 | 0.40 |
+| Diameter px | 5 | 6.62 | 10 | 15.10 | 20 |
+| k | 2 | 2.65 | 4 | 6.04 | 8 |
+| Threshold | 0.02500 | 0.04385 | 0.10 | 0.22803 | 0.40000 |
 
 Diameter and k normally span half to twice the starting value; threshold spans one quarter
 to four times the starting value. Near detector limits, the valid interval is bounded
@@ -39,17 +47,21 @@ generated inside that interval. Individual points are not clipped, which would d
 the experimental geometry. The interface reports both the requested starting point and
 the actual design center and ranges.
 
-Continuous diameter values are retained. Rounding them to whole pixels would damage the
-coded geometry; Rust already accepts floating-point diameters.
+Every generated setting uses the same displayed and executed value: diameter and k round to
+two decimals and threshold rounds to five. Thus the actual rounded settings only approximate
+the continuous coded geometry. Duplicate rounded settings are rejected while constructing the
+design, so every requested run is unique.
 
-There is no 0.001 threshold floor. A starting threshold of 0.0001 explores 0.000025 to
-0.0004. Inputs remain finite and strictly positive; mean count agreement at a low threshold
-does not itself establish that the additional detected objects are cells.
+Threshold has a 0.00002 lower bound. A raw threshold must be greater than 0.00001 before
+rounding, because five decimal places make 0.00002 the smallest valid displayed value. A
+starting threshold of 0.0001 explores 0.00003 to 0.00040 after rounding. Inputs that round
+outside a parameter's valid bounds are rejected; low-threshold count agreement alone does not
+establish that additional detected objects are cells.
 
 ## Interpreting and applying results
 
-The table identifies Center, Factorial, and Axial runs. Mean, median, and population standard
-deviation describe counts across successful design settings, including zero counts.
+The table identifies Center, Factorial, Axial, and Supplemental runs. Mean, median, and
+population standard deviation describe counts across successful design settings, including zero counts.
 Failures are excluded and reported. These statistics depend on the chosen design and range.
 
 For automatic application, select an actual evaluated run whose count is closest to the
@@ -63,12 +75,10 @@ as evidence of stability.
 
 ## Verification
 
-- Node checks verify 15 unique points, five levels per factor, zero sums and cross products
-  of the coded linear columns, valid bounded designs, low thresholds, and median selection.
-- An independent NumPy check gave rank 10 of 10 for the quadratic design matrix; the coded
-  linear cross-product matrix was diagonal with entries 13.65685425.
+- Node checks cover the 15-run CCD core, 21-run default, deterministic unique 100-run
+  augmentation, rounded valid settings, threshold rejection, and median selection.
 - Browser checks exercise the DoE table, count statistics, applied settings, batch CSV,
-  cancellation, and positive thresholds below 0.001.
+  cancellation, and user validation.
 
 Implementations: `src/experiment_design.ts` and `src/choose_representative.ts`.
 

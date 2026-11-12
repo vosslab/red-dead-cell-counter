@@ -37,8 +37,8 @@ fn validate(
     if !k.is_finite() || !(1.1..=8.0).contains(&k) {
         return Err("k must be a finite value from 1.1 to 8".into());
     }
-    if !threshold.is_finite() || threshold <= 0.0 {
-        return Err("threshold must be a positive finite value".into());
+    if !threshold.is_finite() || threshold <= 0.00001 {
+        return Err("threshold must be finite and greater than 0.00001".into());
     }
     Ok(pixels)
 }
@@ -215,5 +215,9 @@ mod tests {
     fn rejects_invalid_input() {
         assert!(detect_core(&[0; 3], 1, 1, 8.0, 3.0, 0.01).is_err());
         assert!(detect_core(&[0; 4], 1, 1, 1.0, 3.0, 0.01).is_err());
+        for threshold in [-0.1, 0.0, 0.00001, f32::NAN] {
+            assert!(detect_core(&[0; 4], 1, 1, 8.0, 3.0, threshold).is_err());
+        }
+        assert!(detect_core(&[0; 4], 1, 1, 8.0, 3.0, 0.00002).is_ok());
     }
 }

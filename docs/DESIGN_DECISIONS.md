@@ -45,18 +45,24 @@ et al., *DoG Picker and TiltPicker*.
 counting raw thresholded connected components.
 
 **Consequence.** The verified starting values are a 10-pixel target diameter, k = 4, and
-response threshold 0.10. Single-image comparison uses a 15-run central composite design:
-eight factorial corners, six axial points, and one center. For three factors, alpha = 8^(1/4),
+response threshold 0.10. Single-image comparison starts with a 15-run central composite
+design: eight factorial corners, six axial points, and one center. The default 21 runs
+add six inner-axis points. Users can choose 15-100 runs; larger budgets add deterministic
+settings spread across the range. For three factors, alpha = 8^(1/4),
 following the [NIST central composite design guidance](https://www.itl.nist.gov/div898/handbook/pri/section3/pri3361.htm).
-Diameter, k, and threshold vary in continuous logarithmic coordinates. The outer valid ranges
-are 5 to 20 pixels, k = 2 to 8, and threshold 0.025 to 0.4; when a requested center would
-exceed a range, that factor's log window recenters at the range's geometric mean without
-changing the 15-run design. The interface displays the requested start and actual center/ranges.
+Diameter, k, and threshold vary in logarithmic coordinates. The default outer ranges
+are 5 to 20 pixels, k = 2 to 8, and threshold 0.025 to 0.4; when a requested window would
+exceed detector bounds, it recenters at the bounded range's geometric mean. Actual run
+settings are rounded to two decimals for diameter/k and five for threshold, so the table,
+processing, and CSV agree. This quantization approximates the continuous design.
+Thresholds must exceed 0.00001, making 0.00002 the smallest five-decimal setting.
+The interface displays the processed start and actual center/ranges.
 The representative median run is the actual tested run closest to the median successful count,
 with ties resolved by logarithmic distance from the center. Auto-tune may apply that run to a
 batch. This describes a representative result, not an accuracy optimizer or quadratic-model
 optimizer. The summary keeps mean, median, and population standard deviation across successful
-runs.
+runs, with those statistics also shown in the table footer. The expanded rounded design
+is not claimed to be exactly rotatable or orthogonal.
 
 **Owner.** `rust/src/lib.rs` and `docs/DETECTOR_EXPERIMENT.md`
 

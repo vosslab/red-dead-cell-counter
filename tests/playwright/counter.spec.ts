@@ -12,52 +12,55 @@ async function a501Payload(): Promise<{ name: string; mimeType: string; buffer: 
 
 async function realImageCrop(
   page: Page,
+  side = 640,
 ): Promise<{ name: string; mimeType: string; buffer: Buffer }> {
   const picker = page.getByLabel("Choose images");
   await picker.setInputFiles(a501);
-  const dataUrl = await picker.evaluate(async (input: HTMLInputElement): Promise<string> => {
-    const file = input.files?.[0];
-    if (!file) throw new Error("The A501 image was not selected.");
-    const bitmap = await createImageBitmap(file);
-    const side = 640;
-    const canvas = document.createElement("canvas");
-    canvas.width = side;
-    canvas.height = side;
-    const context = canvas.getContext("2d");
-    if (!context) {
-      bitmap.close();
-      throw new Error("Canvas is unavailable.");
-    }
-    context.drawImage(
-      bitmap,
-      Math.floor((bitmap.width - side) / 2),
-      Math.floor((bitmap.height - side) / 2),
-      side,
-      side,
-      0,
-      0,
-      side,
-      side,
-    );
-    bitmap.close();
-    const blob = await new Promise<Blob>((resolve, reject): void => {
-      canvas.toBlob((value): void => {
-        if (value) resolve(value);
-        else reject(new Error("Could not encode the real-image crop."));
-      }, "image/png");
-    });
-    return new Promise<string>((resolve, reject): void => {
-      const reader = new FileReader();
-      reader.addEventListener("load", (): void => {
-        if (typeof reader.result === "string") resolve(reader.result);
-        else reject(new Error("The crop encoder returned no data URL."));
-      });
-      reader.addEventListener("error", (): void =>
-        reject(reader.error ?? new Error("Crop encoding failed.")),
+  const dataUrl = await picker.evaluate(
+    async (input: HTMLInputElement, side: number): Promise<string> => {
+      const file = input.files?.[0];
+      if (!file) throw new Error("The A501 image was not selected.");
+      const bitmap = await createImageBitmap(file);
+      const canvas = document.createElement("canvas");
+      canvas.width = side;
+      canvas.height = side;
+      const context = canvas.getContext("2d");
+      if (!context) {
+        bitmap.close();
+        throw new Error("Canvas is unavailable.");
+      }
+      context.drawImage(
+        bitmap,
+        Math.floor((bitmap.width - side) / 2),
+        Math.floor((bitmap.height - side) / 2),
+        side,
+        side,
+        0,
+        0,
+        side,
+        side,
       );
-      reader.readAsDataURL(blob);
-    });
-  });
+      bitmap.close();
+      const blob = await new Promise<Blob>((resolve, reject): void => {
+        canvas.toBlob((value): void => {
+          if (value) resolve(value);
+          else reject(new Error("Could not encode the real-image crop."));
+        }, "image/png");
+      });
+      return new Promise<string>((resolve, reject): void => {
+        const reader = new FileReader();
+        reader.addEventListener("load", (): void => {
+          if (typeof reader.result === "string") resolve(reader.result);
+          else reject(new Error("The crop encoder returned no data URL."));
+        });
+        reader.addEventListener("error", (): void =>
+          reject(reader.error ?? new Error("Crop encoding failed.")),
+        );
+        reader.readAsDataURL(blob);
+      });
+    },
+    side,
+  );
   return {
     name: "A501-central-crop.png",
     mimeType: "image/png",
@@ -120,7 +123,7 @@ test("researcher can count a real PI image and download its CSV result", async (
     "filename,width,height,count,status,error,diameter_px,k,threshold,algorithm_version",
   );
   expect(content).toContain('"A501.jpg","4249","4258",');
-  expect(content).toContain(',"done","","10","4","0.1","dog-picker-1"');
+  expect(content).toContain(',"done","","10.00","4.00","0.10000","dog-picker-1"');
 });
 
 test("bad files fail without preventing a valid batch result", async ({ page }) => {
@@ -189,20 +192,33 @@ test("comparison applies one real-image setting to a subsequent batch CSV", asyn
   await page.getByLabel("Choose images").setInputFiles(crop);
   await expect(page.getByRole("status")).toHaveText("1 image selected.");
 
+  const runs = page.getByLabel("Comparison runs");
+  await expect(runs).toHaveAttribute("min", "15");
+  await expect(runs).toHaveAttribute("max", "100");
+  await expect(runs).toHaveValue("21");
+
   await page.getByRole("button", { name: "Compare settings" }).click();
   const comparisonRows = page.locator("#comparison-rows tr");
-  await expect(comparisonRows).toHaveCount(15, { timeout: 80_000 });
+  await expect(comparisonRows).toHaveCount(21, { timeout: 80_000 });
   const appliedRow = comparisonRows
+    .filter({ hasText: "Factorial" })
     .filter({ has: page.getByRole("button", { name: "Apply" }) })
     .first();
   const values = await appliedRow
     .locator("td")
     .evaluateAll((cells) => cells.slice(0, 3).map((cell) => cell.textContent ?? ""));
-  expect(values).toHaveLength(3);
+  expect(values).toEqual([
+    expect.stringMatching(/^\d+\.\d{2}$/),
+    expect.stringMatching(/^\d+\.\d{2}$/),
+    expect.stringMatching(/^\d+\.\d{5}$/),
+  ]);
   await appliedRow.getByRole("button", { name: "Apply" }).click();
-  await expect(page.getByLabel("Cell diameter (px)")).toHaveValue(values[0] ?? "");
-  await expect(page.getByLabel("DoG k")).toHaveValue(values[1] ?? "");
-  await expect(page.getByLabel("Response threshold")).toHaveValue(values[2] ?? "");
+  const appliedValues = await Promise.all(
+    ["Cell diameter (px)", "DoG k", "Response threshold"].map((label) =>
+      page.getByLabel(label).inputValue(),
+    ),
+  );
+  expect(appliedValues).toEqual(values);
 
   await page.getByLabel("Choose images").setInputFiles([
     { ...crop, name: "crop-one.png" },
@@ -215,7 +231,8 @@ test("comparison applies one real-image setting to a subsequent batch CSV", asyn
   const lines = (await csvContent(await download)).split("\r\n");
   expect(lines).toHaveLength(3);
   for (const line of lines.slice(1)) {
-    expect(line).toContain(`,"${values[0]}","${values[1]}","${values[2]}","dog-picker-1"`);
+    const fields = line.split(",").map((field) => field.replace(/^"|"$/g, ""));
+    expect(fields.slice(6, 9)).toEqual(appliedValues);
   }
 });
 
@@ -229,7 +246,7 @@ test("auto-tune compares a real crop before analyzing its batch", async ({ page 
   ]);
   await page.getByRole("button", { name: "Auto-tune and analyze batch" }).click();
   await expect(page.getByRole("status")).toHaveText("Analysis complete.", { timeout: 80_000 });
-  await expect(page.locator("#comparison-rows tr")).toHaveCount(15);
+  await expect(page.locator("#comparison-rows tr")).toHaveCount(21);
   await expect(page.locator("#rows tr .ok")).toHaveCount(2);
 });
 
@@ -257,8 +274,11 @@ test("all supplied images finish through the browser worker", async ({ page }) =
   for (const name of names) {
     const row = page.locator("#rows tr").filter({ hasText: name });
     await expect(row).toContainText("Done");
-    await expect(row.locator("td").nth(1)).toHaveText(/^\d+$/);
+    await expect(row.locator("td").nth(1)).toHaveText(/^\d{1,3}(,\d{3})*$/);
   }
+  await expect(
+    page.locator("#rows tr").filter({ hasText: "H501.jpg" }).locator("td").nth(1),
+  ).toHaveText("3,021");
   await test.info().attach("eight-real-images-timing.txt", {
     body: `${Date.now() - started} ms\n`,
     contentType: "text/plain",
@@ -354,7 +374,7 @@ test("comparison reports progress, explains its recommendation, and confirms app
   await page.getByRole("button", { name: "Compare settings", exact: true }).click();
   await expect(page.locator("#comparison-progress")).toBeVisible();
   await expect(page.locator("#comparison-status")).toHaveAttribute("aria-live", "polite");
-  await expect(page.locator("#comparison-progress")).toHaveAttribute("value", "15", {
+  await expect(page.locator("#comparison-progress")).toHaveAttribute("value", "21", {
     timeout: 80_000,
   });
   await expect(page.locator("#comparison-applied")).toContainText("Analyze images");
@@ -362,26 +382,51 @@ test("comparison reports progress, explains its recommendation, and confirms app
   await expect(page.locator("#comparison-recommendation")).toContainText(/threshold/i);
   await expect(page.locator("#comparison-rows")).toContainText("Recommended");
   await expect(page.locator("#comparison-rows")).toContainText("Applied");
-  const counts = (await page.locator("#comparison-rows tr td:nth-child(4)").allTextContents())
-    .map(Number)
-    .sort((a, b) => a - b);
-  const mean = counts.reduce((sum, value) => sum + value, 0) / counts.length;
-  const median =
-    ((counts[Math.floor((counts.length - 1) / 2)] ?? 0) +
-      (counts[Math.floor(counts.length / 2)] ?? 0)) /
-    2;
-  const deviation = Math.sqrt(
-    counts.reduce((sum, value) => sum + (value - mean) ** 2, 0) / counts.length,
-  );
-  await expect(page.locator("#comparison-status")).toContainText(`mean ${mean.toFixed(1)}`);
-  await expect(page.locator("#comparison-status")).toContainText(`median ${median.toFixed(1)}`);
-  await expect(page.locator("#comparison-status")).toContainText(
-    `standard deviation ${deviation.toFixed(1)}`,
-  );
+  await expect(page.locator("#comparison-rows")).toContainText("Supplemental");
   await page.screenshot({
     path: "/private/tmp/red-cell-experiment/comparison-feedback.png",
     fullPage: true,
   });
+});
+
+test("comparison supports 100 real-image runs and summarizes their visible counts", async ({
+  page,
+}) => {
+  test.setTimeout(45_000);
+  await open(page);
+  const crop = await realImageCrop(page, 128);
+  await page.getByLabel("Choose images").setInputFiles(crop);
+  await page.getByLabel("Comparison runs").fill("101");
+  await page.getByRole("button", { name: "Compare settings", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText(/15.*100/);
+  await expect(page.locator("#comparison-rows tr")).toHaveCount(0);
+
+  await page.getByLabel("Comparison runs").fill("100");
+  await page.getByRole("button", { name: "Compare settings", exact: true }).click();
+
+  const rows = page.locator("#comparison-rows tr");
+  await expect(rows).toHaveCount(100, { timeout: 40_000 });
+  await expect(page.locator("#comparison-progress")).toHaveAttribute("max", "100");
+  await expect(page.locator("#comparison-progress")).toHaveAttribute("value", "100");
+  const countTexts = await rows.locator("td:nth-child(4)").allTextContents();
+  expect(countTexts.every((count) => /^\d{1,3}(,\d{3})*$/.test(count))).toBe(true);
+  const counts = countTexts
+    .map((count) => Number(count.replace(/,/g, "")))
+    .sort((first, second) => first - second);
+  expect(counts.every(Number.isFinite)).toBe(true);
+  const mean = counts.reduce((sum, count) => sum + count, 0) / counts.length;
+  const median = (counts[49] ?? 0) / 2 + (counts[50] ?? 0) / 2;
+  const deviation = Math.sqrt(
+    counts.reduce((sum, count) => sum + (count - mean) ** 2, 0) / counts.length,
+  );
+  const formatted = (value: number): string =>
+    value.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const statistics = page.locator("#comparison-statistics");
+  await expect(statistics).toBeVisible();
+  await expect(statistics.getByRole("row")).toHaveCount(3);
+  await expect(statistics.getByRole("row", { name: /MEAN/ })).toContainText(formatted(mean));
+  await expect(statistics.getByRole("row", { name: /MEDIAN/ })).toContainText(formatted(median));
+  await expect(statistics.getByRole("row", { name: /SD/ })).toContainText(formatted(deviation));
 });
 
 test("cancelled comparison preserves partial progress rather than claiming completion", async ({
@@ -405,24 +450,31 @@ test("cancelled comparison preserves partial progress rather than claiming compl
   await expect(page.locator("#comparison-status")).toContainText(/cancelled/i);
   const completed = Number(await page.locator("#comparison-progress").getAttribute("value"));
   expect(completed).toBeGreaterThanOrEqual(2);
-  expect(completed).toBeLessThan(15);
+  expect(completed).toBeLessThan(21);
   await expect(page.locator("#comparison-rows tr")).toHaveCount(completed);
   await expect(page.getByRole("button", { name: "Compare settings", exact: true })).toBeEnabled();
 });
 
-test("DoE runs retain small positive thresholds", async ({ page }) => {
+test("comparison requires a threshold above 0.00001 and keeps small valid values", async ({
+  page,
+}) => {
   await open(page);
   const crop = await realImageCrop(page);
   await page.getByLabel("Choose images").setInputFiles(crop);
-  await page.getByLabel("Response threshold").fill("0.0001");
+  await page.getByLabel("Response threshold").fill("0.00001");
   await page.getByRole("button", { name: "Compare settings", exact: true }).click();
-  await expect(page.locator("#comparison-status")).toContainText("15 successful", {
+  await expect(page.getByRole("status")).toContainText(/threshold above 0\.00001/i);
+  await expect(page.locator("#comparison-rows tr")).toHaveCount(0);
+
+  await page.getByLabel("Response threshold").fill("0.00002");
+  await page.getByRole("button", { name: "Compare settings", exact: true }).click();
+  await expect(page.locator("#comparison-status")).toContainText("21 successful", {
     timeout: 80_000,
   });
   const thresholds = (
     await page.locator("#comparison-rows tr td:nth-child(3)").allTextContents()
   ).map(Number);
-  expect(thresholds).toHaveLength(15);
+  expect(thresholds).toHaveLength(21);
   expect(Math.min(...thresholds)).toBeGreaterThan(0);
   expect(Math.max(...thresholds)).toBeLessThan(0.001);
   await expect(page.locator("#comparison-rows")).toContainText("Center");

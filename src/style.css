@@ -6,7 +6,7 @@
   --paper: #e8d4a2;
   --paper-light: #f6e6bb;
   --ink: #28170f;
-  --gold: #d8ad58;
+  --gold: #e8d09e;
   font-family: ui-sans-serif, system-ui, sans-serif;
   background: var(--night);
   color: var(--paper-light);
@@ -326,8 +326,7 @@ input[type="number"] {
   outline: 3px solid #ffe19a;
   outline-offset: 3px;
 }
-#analyze,
-#auto-tune-batch {
+#compare {
   background: linear-gradient(180deg, #b53a2a, #641b16);
   border-color: #e17857;
 }
@@ -345,6 +344,7 @@ input[type="number"] {
 }
 .image-panel,
 .comparison {
+  min-width: 0;
   padding: 1rem;
   border: 2px solid #70411f;
   background: #231109;
@@ -370,6 +370,23 @@ input[type="number"] {
 }
 .comparison > p {
   color: #e5c98f;
+}
+.comparison-steps {
+  display: grid;
+  gap: 0.35rem;
+  margin: 1rem 0;
+  padding: 0.8rem 0.8rem 0.8rem 2.3rem;
+  border-left: 4px solid var(--gold);
+  background: #231109;
+  color: #ead7aa;
+}
+.controls small {
+  display: block;
+  max-width: 18rem;
+  margin-top: 0.25rem;
+  color: #e5c98f;
+  font-size: 0.75rem;
+  font-weight: 400;
 }
 .comparison-feedback {
   display: grid;
@@ -472,6 +489,12 @@ th {
 .comparison th {
   color: var(--gold);
   border-bottom: 2px solid #a57138;
+}
+.comparison tfoot th,
+.comparison tfoot td {
+  border-top: 1px solid #a57138;
+  color: var(--paper-light);
+  font-size: 0.82rem;
 }
 tbody tr {
   cursor: pointer;

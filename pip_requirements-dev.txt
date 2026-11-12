@@ -12,3 +12,4 @@ tree-sitter-rust  # Rust grammar for the Graphify cfg(test) prune step
 numpy  # real-image detector characterization
 Pillow  # real-image detector characterization
 scipy  # real-image detector characterization
+scikit-image  # experimental automatic DoG threshold comparisons

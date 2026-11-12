@@ -14,7 +14,7 @@ stay on your device.
 <!-- screenshots:end -->
 
 - Inspect individual images with detection circles, fit-to-panel viewing, and zoom.
-- Compare 15 central-composite cell-diameter, k, and threshold settings, with counts and runtimes.
+- Compare 21 settings by default, or choose 15-100 runs, with rounded parameters and grouped counts.
 - Auto-tune to the representative median run, or apply a comparison row yourself before batching.
 - Process plate-sized batches sequentially and download CSV counts, settings, and errors.
 
@@ -44,25 +44,31 @@ See [verification evidence](docs/VERIFICATION.md) for the current checks and the
 
 1. Open the tool, select **Enter saloon**, and choose JPEG or PNG images.
    Select a row to inspect that image.
-2. Choose **Analyze selected image** for a count with the current settings.
-3. Choose **Compare settings** to run a 15-point central composite design around the current
-   values. The table shows each count and runtime, highlights the actual tested run closest
+2. Start with **Compare settings**. The default 21 runs use a 15-point central composite
+   design plus six inner-axis settings; **Comparison runs** accepts 15 through 100.
+   Larger experiments add settings that spread coverage across the parameter range.
+   The table shows each count and runtime, highlights the actual tested run closest
    to the comparison median, and automatically applies that representative run.
    Progress feedback includes elapsed/remaining time; the final summary reports count
    range, mean, median, and population standard deviation across successful settings.
-   Choose **Apply** on another row to use that result instead.
+   Mean, median, and SD also appear below the Count column. Choose **Apply** on another
+   row to use that result instead.
+3. Inspect the marked image. Use **Analyze selected image** when you want to try a
+   particular setting directly.
 4. Choose **Analyze images** to apply the current settings to the entire selection, or
    **Auto-tune and analyze batch** to compare the selected image first and then batch.
 5. Choose **Download CSV**. Every row records the settings actually used for that image.
 
-The comparison uses eight factorial corners, six axial points, and one center.
+The comparison starts with eight factorial corners, six axial points, and one center.
 For three factors its axial distance is alpha = 8^(1/4). Diameter, k, and threshold use
-continuous logarithmic coordinates, so the tested settings stay proportional to the starting
-point. Around the default starting values, the outer ranges are 5 to 20 pixels,
+logarithmic coordinates, then round the actual tested settings: diameter and k to two
+decimal places and threshold to five. The table, processing, and CSV use those same values.
+Rounding makes the continuous design approximate. Around the default starting values, the outer ranges are 5 to 20 pixels,
 k = 2 to 8, and threshold 0.025 to 0.4.
 At a boundary the log window recenters at the geometric mean while preserving the design.
-The requested starting point and actual center/ranges remain visible. Custom positive thresholds
-are accepted, including values below 0.001. Review the overlay before applying an image's
+The processed starting point and actual center/ranges remain visible. Thresholds must be
+strictly greater than 0.00001; five-decimal rounding makes 0.00002 the smallest supported
+setting. Values below 0.001 are supported. Review the overlay before applying an image's
 settings across a plate with different acquisition conditions.
 
 ## Build and run locally
@@ -109,6 +115,7 @@ sigma2 = k * sigma1
 
 - [Experimental design and parameter ranges](docs/EXPERIMENT_DESIGN.md)
 - [Real-image DoE and low-threshold results](docs/DOE_RESULTS.md)
+- [Automatic threshold experiments](docs/THRESHOLD_EXPERIMENT.md)
 - [Detector experiments and calibration](docs/DETECTOR_EXPERIMENT.md)
 - [Verification results and limitations](docs/VERIFICATION.md)
 - [Architecture and design decisions](docs/DESIGN_DECISIONS.md)

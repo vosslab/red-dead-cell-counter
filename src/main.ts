@@ -1,5 +1,10 @@
 import { chooseRepresentative } from "./choose_representative.js";
-import { comparisonDesign, type DesignPoint, type DetectorSettings } from "./experiment_design.js";
+import {
+  comparisonDesign,
+  roundSettings,
+  type DesignPoint,
+  type DetectorSettings,
+} from "./experiment_design.js";
 
 type Settings = DetectorSettings;
 type ImageResult = {
@@ -29,6 +34,7 @@ const elements = {
   diameter: document.querySelector<HTMLInputElement>("#diameter")!,
   k: document.querySelector<HTMLInputElement>("#k")!,
   threshold: document.querySelector<HTMLInputElement>("#threshold")!,
+  comparisonRuns: document.querySelector<HTMLInputElement>("#comparison-runs")!,
   analyze: document.querySelector<HTMLButtonElement>("#analyze")!,
   analyzeSelected: document.querySelector<HTMLButtonElement>("#analyze-selected")!,
   compare: document.querySelector<HTMLButtonElement>("#compare")!,
@@ -52,6 +58,7 @@ const elements = {
   comparisonRecommendation: document.querySelector<HTMLElement>("#comparison-recommendation")!,
   comparisonApplied: document.querySelector<HTMLElement>("#comparison-applied")!,
   comparisonRows: document.querySelector<HTMLTableSectionElement>("#comparison-rows")!,
+  comparisonStatistics: document.querySelector<HTMLTableSectionElement>("#comparison-statistics")!,
 };
 let results: ImageResult[] = [];
 let selected = 0;
@@ -72,17 +79,37 @@ function settings(): Settings {
     threshold: Number(elements.threshold.value),
   };
 }
+function processedSettings(): Settings | undefined {
+  const requested = settings();
+  if (!validate(requested)) return undefined;
+  const actual = roundSettings(requested);
+  if (!validate(actual) || actual.threshold <= 0.00001) return undefined;
+  elements.diameter.value = actual.diameter.toFixed(2);
+  elements.k.value = actual.k.toFixed(2);
+  elements.threshold.value = actual.threshold.toFixed(5);
+  return actual;
+}
+function settingsValidationMessage(): string {
+  const requested = settings();
+  const rounded = roundSettings(requested);
+  if (requested.threshold > 0.00001 && rounded.threshold <= 0.00001) {
+    return "After rounding to five decimals, the threshold must remain above 0.00001.";
+  }
+  return "Use a diameter of 2-200 px, k of 1.1-8, and a threshold above 0.00001.";
+}
 function setStatus(message: string): void {
   elements.status.textContent = message;
 }
 function comparisonSettingsText(input: Settings): string {
-  return `diameter ${input.diameter} px, k ${showNumber(input.k)}, threshold ${showNumber(input.threshold)}`;
+  return `diameter ${input.diameter.toFixed(2)} px, k ${input.k.toFixed(2)}, threshold ${input.threshold.toFixed(5)}`;
 }
 function formatDuration(milliseconds: number): string {
   if (milliseconds < 1_000) return `${Math.round(milliseconds)} ms`;
   return `${(milliseconds / 1_000).toFixed(milliseconds < 10_000 ? 1 : 0)} s`;
 }
-function countStatisticsText(counts: number[]): string {
+type CountStatistics = { mean: number; median: number; standardDeviation: number; count: number };
+function countStatistics(counts: number[]): CountStatistics | undefined {
+  if (counts.length === 0) return undefined;
   const sorted = [...counts].sort(function ascending(first: number, second: number): number {
     return first - second;
   });
@@ -100,7 +127,16 @@ function countStatisticsText(counts: number[]): string {
       return total + (count - mean) ** 2;
     }, 0) / sorted.length,
   );
-  return `Across ${sorted.length} successful settings: mean ${mean.toFixed(1)}, median ${median.toFixed(1)}, standard deviation ${standardDeviation.toFixed(1)} cells.`;
+  return { mean, median, standardDeviation, count: sorted.length };
+}
+function formatCount(count: number): string {
+  return count.toLocaleString("en-US");
+}
+function formatStatistic(value: number): string {
+  return value.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+}
+function countStatisticsText(statistics: CountStatistics): string {
+  return `Across ${formatCount(statistics.count)} successful settings: mean ${formatStatistic(statistics.mean)}, median ${formatStatistic(statistics.median)}, standard deviation ${formatStatistic(statistics.standardDeviation)} cells.`;
 }
 function comparisonTimingText(completed: number, total: number, started: number): string {
   if (completed === 0) return "";
@@ -118,7 +154,7 @@ function setComparisonProgress(completed: number, total: number): void {
   elements.comparisonProgressLabel.textContent =
     total === 0
       ? "Comparison progress: ready"
-      : `Comparison progress: ${completed} of ${total} candidates complete`;
+      : `Comparison progress: ${formatCount(completed)} of ${formatCount(total)} candidates complete`;
 }
 function setComparisonStatus(message: string): void {
   elements.comparisonStatus.textContent = message;
@@ -128,6 +164,8 @@ function clearComparisonFeedback(message: string): void {
     "Select an image, then compare a compact central-composite design of cell-size, k, and threshold settings.";
   elements.comparisonRecommendation.textContent = "";
   elements.comparisonApplied.textContent = "";
+  elements.comparisonStatistics.replaceChildren();
+  elements.comparisonStatistics.hidden = true;
   setComparisonProgress(0, 0);
   setComparisonStatus(message);
 }
@@ -145,7 +183,7 @@ function drawRows(): void {
   results.forEach(function addRow(result: ImageResult, index: number): void {
     const row = document.createElement("tr");
     if (index === selected) row.className = "selected";
-    const count = result.centers ? String(result.centers.length / 2) : "";
+    const count = result.centers ? formatCount(result.centers.length / 2) : "";
     const state = result.error ? result.error : result.centers ? "Done" : "Waiting";
     row.tabIndex = 0;
     row.append(
@@ -180,17 +218,40 @@ function drawRows(): void {
 function showNumber(value: number): string {
   return Number(value.toPrecision(4)).toString();
 }
+function headerCell(text: string): HTMLTableCellElement {
+  const output = document.createElement("th");
+  output.scope = "row";
+  output.colSpan = 3;
+  output.textContent = text;
+  return output;
+}
+function drawComparisonStatistics(counts: number[]): CountStatistics | undefined {
+  const statistics = countStatistics(counts);
+  elements.comparisonStatistics.replaceChildren();
+  elements.comparisonStatistics.hidden = !statistics;
+  if (!statistics) return undefined;
+  for (const [label, value] of [
+    ["MEAN", statistics.mean],
+    ["MEDIAN", statistics.median],
+    ["SD", statistics.standardDeviation],
+  ] as const) {
+    const row = document.createElement("tr");
+    row.append(headerCell(label), cell(formatStatistic(value)), cell(""), cell(""), cell(""));
+    elements.comparisonStatistics.append(row);
+  }
+  return statistics;
+}
 function drawComparisons(): void {
   elements.comparisonRows.replaceChildren();
   for (const comparison of comparisons) {
     const row = document.createElement("tr");
     if (comparison === recommended) row.className = "recommended";
-    const count = comparison.centers ? String(comparison.centers.length / 2) : "";
+    const count = comparison.centers ? formatCount(comparison.centers.length / 2) : "";
     const elapsed = `${comparison.elapsed.toFixed(0)} ms`;
     row.append(
-      cell(String(comparison.settings.diameter)),
-      cell(showNumber(comparison.settings.k)),
-      cell(showNumber(comparison.settings.threshold)),
+      cell(comparison.settings.diameter.toFixed(2)),
+      cell(comparison.settings.k.toFixed(2)),
+      cell(comparison.settings.threshold.toFixed(5)),
       cell(count),
       cell(comparison.error ?? elapsed, comparison.error ? "error" : undefined),
       cell(comparison.kind),
@@ -239,9 +300,9 @@ async function applyComparisonResult(comparison: Comparison): Promise<void> {
     bitmap.close();
   }
   if (active || results[selected] !== result || comparisonFile !== result.file) return;
-  elements.diameter.value = String(comparison.settings.diameter);
-  elements.k.value = String(comparison.settings.k);
-  elements.threshold.value = String(comparison.settings.threshold);
+  elements.diameter.value = comparison.settings.diameter.toFixed(2);
+  elements.k.value = comparison.settings.k.toFixed(2);
+  elements.threshold.value = comparison.settings.threshold.toFixed(5);
   result.centers = comparison.centers;
   result.settings = comparison.settings;
   result.error = undefined;
@@ -323,8 +384,9 @@ async function showPreview(result: ImageResult): Promise<void> {
     setStatus(error instanceof Error ? error.message : "Preview failed.");
   }
 }
-function validate(input: Settings): boolean {
+function validate(input: Settings | undefined): input is Settings {
   return (
+    input !== undefined &&
     Number.isFinite(input.diameter) &&
     input.diameter >= 2 &&
     input.diameter <= 200 &&
@@ -332,7 +394,7 @@ function validate(input: Settings): boolean {
     input.k >= 1.1 &&
     input.k <= 8 &&
     Number.isFinite(input.threshold) &&
-    input.threshold > 0
+    input.threshold > 0.00001
   );
 }
 function process(
@@ -375,6 +437,7 @@ function setRunning(running: boolean): void {
     elements.diameter,
     elements.k,
     elements.threshold,
+    elements.comparisonRuns,
     elements.analyze,
     elements.analyzeSelected,
     elements.compare,
@@ -385,9 +448,9 @@ function setRunning(running: boolean): void {
   drawComparisons();
 }
 async function analyze(): Promise<void> {
-  const input = settings();
+  const input = processedSettings();
   if (!validate(input)) {
-    setStatus("Use a diameter of 2-200 px, k of 1.1-8, and a positive threshold.");
+    setStatus(settingsValidationMessage());
     return;
   }
   if (results.length === 0) {
@@ -438,14 +501,14 @@ async function analyze(): Promise<void> {
   setStatus(stopped ? "Batch cancelled." : "Analysis complete.");
 }
 async function analyzeSelected(): Promise<void> {
-  const input = settings();
+  const input = processedSettings();
   const result = results[selected];
   if (!result) {
     setStatus("Choose an image first.");
     return;
   }
   if (!validate(input)) {
-    setStatus("Use a diameter of 2-200 px, k of 1.1-8, and a positive threshold.");
+    setStatus(settingsValidationMessage());
     return;
   }
   setRunning(true);
@@ -478,19 +541,26 @@ async function analyzeSelected(): Promise<void> {
   setStatus(stopped ? "Batch cancelled." : "Selected image analysis complete.");
 }
 async function compareSettings(): Promise<boolean> {
-  const input = settings();
+  const input = processedSettings();
   const result = results[selected];
   if (!result) {
     setStatus("Choose an image first.");
     return false;
   }
   if (!validate(input)) {
-    setStatus("Use a diameter of 2-200 px, k of 1.1-8, and a positive threshold.");
+    setStatus(settingsValidationMessage());
+    return false;
+  }
+  const runCount = Number(elements.comparisonRuns.value);
+  if (!Number.isInteger(runCount) || runCount < 15 || runCount > 100) {
+    const message = "Choose a whole number of comparison runs from 15 through 100.";
+    setComparisonStatus(message);
+    setStatus(message);
     return false;
   }
   let candidates: DesignPoint[];
   try {
-    candidates = comparisonDesign(input);
+    candidates = comparisonDesign(input, runCount);
   } catch (error: unknown) {
     const message =
       error instanceof Error ? error.message : "Comparison design could not be prepared.";
@@ -502,18 +572,21 @@ async function compareSettings(): Promise<boolean> {
   recommended = undefined;
   appliedComparison = undefined;
   comparisonFile = result.file;
+  elements.comparisonStatistics.replaceChildren();
+  elements.comparisonStatistics.hidden = true;
   function range(axis: keyof Settings, suffix = ""): string {
     const values = candidates.map(function value(candidate: DesignPoint): number {
       return candidate[axis];
     });
-    return `${showNumber(Math.min(...values))}-${showNumber(Math.max(...values))}${suffix}`;
+    const digits = axis === "threshold" ? 5 : 2;
+    return `${Math.min(...values).toFixed(digits)}-${Math.max(...values).toFixed(digits)}${suffix}`;
   }
-  elements.comparisonSummary.textContent = `Testing a 15-point central-composite design for ${result.file.name}: 1 center, 8 factorial, and 6 axial points. Requested starting point: ${comparisonSettingsText(input)}. Actual design center: ${comparisonSettingsText(candidates[0]!)}. Values are log-spaced from diameter ${range("diameter", " px")}, k ${range("k")}, and threshold ${range("threshold")}.`;
+  elements.comparisonSummary.textContent = `Testing ${formatCount(candidates.length)} settings for ${result.file.name}: the 15-point central-composite design (1 center, 8 factorial, 6 axial) plus ${formatCount(candidates.length - 15)} supplemental settings. Processed starting point: ${comparisonSettingsText(input)}. Actual design center: ${comparisonSettingsText(candidates[0]!)}. Rounded settings span diameter ${range("diameter", " px")}, k ${range("k")}, and threshold ${range("threshold")}.`;
   elements.comparisonRecommendation.textContent = "";
   elements.comparisonApplied.textContent = "";
   setComparisonProgress(0, candidates.length);
   setComparisonStatus(
-    `Preparing ${candidates.length} candidates for ${result.file.name}. Decoding the image before comparison.`,
+    `Preparing ${formatCount(candidates.length)} candidates for ${result.file.name}. Decoding the image before comparison.`,
   );
   drawComparisons();
   elements.comparison.scrollIntoView({
@@ -533,7 +606,7 @@ async function compareSettings(): Promise<boolean> {
       if (!candidate) continue;
       const completedBeforeRun = comparisons.length;
       setComparisonStatus(
-        `Comparing ${index + 1} of ${candidates.length}: ${comparisonSettingsText(candidate)}. ${completedBeforeRun} completed.${comparisonTimingText(completedBeforeRun, candidates.length, comparisonStarted)}`,
+        `Comparing ${formatCount(index + 1)} of ${formatCount(candidates.length)}: ${comparisonSettingsText(candidate)}. ${formatCount(completedBeforeRun)} completed.${comparisonTimingText(completedBeforeRun, candidates.length, comparisonStarted)}`,
       );
       const started = performance.now();
       try {
@@ -569,7 +642,7 @@ async function compareSettings(): Promise<boolean> {
       }).length;
       const failures = completed - successes;
       setComparisonStatus(
-        `Completed ${completed} of ${candidates.length}: ${successes} successful, ${failures} failed.${comparisonTimingText(completed, candidates.length, comparisonStarted)}`,
+        `Completed ${formatCount(completed)} of ${formatCount(candidates.length)}: ${formatCount(successes)} successful, ${formatCount(failures)} failed.${comparisonTimingText(completed, candidates.length, comparisonStarted)}`,
       );
     }
   } catch (error: unknown) {
@@ -580,21 +653,19 @@ async function compareSettings(): Promise<boolean> {
   setRunning(false);
   elements.comparisonCancel.disabled = true;
   if (stopped) {
-    const successes = comparisons.filter(function isSuccessful(comparison: Comparison): boolean {
-      return Boolean(comparison.centers);
-    }).length;
+    const partialCounts = comparisons
+      .filter(function isSuccessful(comparison: Comparison): boolean {
+        return Boolean(comparison.centers);
+      })
+      .map(function count(comparison: Comparison): number {
+        return (comparison.centers?.length ?? 0) / 2;
+      });
+    const successes = partialCounts.length;
+    const statistics = drawComparisonStatistics(partialCounts);
     setComparisonStatus(
-      `Comparison cancelled after ${comparisons.length} of ${candidates.length} candidates: ${successes} successful and ${comparisons.length - successes} failed.${
-        successes > 0
-          ? ` Partial results: ${countStatisticsText(
-              comparisons
-                .filter(function isSuccessful(comparison: Comparison): boolean {
-                  return Boolean(comparison.centers);
-                })
-                .map(function count(comparison: Comparison): number {
-                  return (comparison.centers?.length ?? 0) / 2;
-                }),
-            )} These statistics describe sensitivity to settings.`
+      `Comparison cancelled after ${formatCount(comparisons.length)} of ${formatCount(candidates.length)} candidates: ${formatCount(successes)} successful and ${formatCount(comparisons.length - successes)} failed.${
+        statistics
+          ? ` Partial results (n=${formatCount(statistics.count)}): ${countStatisticsText(statistics)} These statistics describe sensitivity to settings.`
           : ""
       }`,
     );
@@ -613,7 +684,7 @@ async function compareSettings(): Promise<boolean> {
   });
   if (successful.length === 0) {
     setComparisonStatus(
-      `Comparison finished after ${formatDuration(performance.now() - comparisonStarted)}: 0 successful and ${comparisons.length} failed.`,
+      `Comparison finished after ${formatDuration(performance.now() - comparisonStarted)}: 0 successful and ${formatCount(comparisons.length)} failed.`,
     );
     setStatus(`No comparison settings completed for ${result.file.name}.`);
     return false;
@@ -639,16 +710,17 @@ async function compareSettings(): Promise<boolean> {
   const counts = successful.map(function count(comparison: Comparison): number {
     return (comparison.centers?.length ?? 0) / 2;
   });
-  const countRange = `${Math.min(...counts)}-${Math.max(...counts)}`;
-  const statistics = countStatisticsText(counts);
-  elements.comparisonRecommendation.textContent = `Representative median run: ${(recommendation.centers?.length ?? 0) / 2} cells with ${comparisonSettingsText(recommendation.settings)}. This is an actual tested setting whose count is closest to the median of the successful design runs. These statistics describe sensitivity to settings.`;
+  const countRange = `${formatCount(Math.min(...counts))}-${formatCount(Math.max(...counts))}`;
+  const statistics = drawComparisonStatistics(counts);
+  if (!statistics) return false;
+  elements.comparisonRecommendation.textContent = `Representative median run: ${formatCount((recommendation.centers?.length ?? 0) / 2)} cells with ${comparisonSettingsText(recommendation.settings)}. This is an actual tested setting whose count is closest to the median of the successful design runs. These statistics describe sensitivity to settings.`;
   setComparisonStatus(
-    `Comparison finished: ${successful.length} successful and ${comparisons.length - successful.length} failed in ${formatDuration(performance.now() - comparisonStarted)}. Counts ranged from ${countRange}. ${statistics} These statistics describe sensitivity to settings.`,
+    `Comparison finished: ${formatCount(successful.length)} successful and ${formatCount(comparisons.length - successful.length)} failed in ${formatDuration(performance.now() - comparisonStarted)}. Counts ranged from ${countRange}. ${countStatisticsText(statistics)} These statistics describe sensitivity to settings.`,
   );
   drawComparisons();
   if (recommended) await applyComparisonResult(recommended);
   setStatus(
-    `Representative median run applied after comparing ${comparisons.length} settings for ${result.file.name}.`,
+    `Representative median run applied after comparing ${formatCount(comparisons.length)} settings for ${result.file.name}.`,
   );
   return true;
 }
@@ -668,9 +740,9 @@ function download(): void {
       result.centers ? String(result.centers.length / 2) : "",
       result.error ? "failed" : result.centers ? "done" : "waiting",
       result.error ?? "",
-      String(result.settings?.diameter ?? ""),
-      String(result.settings?.k ?? ""),
-      String(result.settings?.threshold ?? ""),
+      result.settings?.diameter.toFixed(2) ?? "",
+      result.settings?.k.toFixed(2) ?? "",
+      result.settings?.threshold.toFixed(5) ?? "",
       "dog-picker-1",
     ];
     // ASVS 1.2.10: prefix formula-like filenames before spreadsheet export.

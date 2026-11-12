@@ -4,6 +4,9 @@
 
 ### Added
 
+- Benchmarked fixed and image-adaptive DoG cutoffs on the real calibration images and
+  verified whether merging threshold runs changes the selected cell centers.
+
 - Added a saloon entrance with swinging-door hover and keyboard access, original editable
   SVG saloon, horses, longhorn skull, and saguaro artwork.
 - Added current saloon and populated-counter WebP screenshots to the README.
@@ -21,6 +24,11 @@
 - Added GitHub Pages packaging and native/Wasm parity and browser workflow checks.
 
 ### Changed
+
+- Made Compare settings the primary starting action, added 15-100 run selection with
+  a 21-run default, and put mean, median, and population SD in the comparison table.
+- Rounded actual detector settings and CSV values with the displayed settings, grouped
+  counts with commas, and required response thresholds strictly greater than 0.00001.
 
 - Extended the Western theme with wood panels, a wanted poster, an aged-paper count ledger,
   and an illustrated empty image view.
