@@ -207,10 +207,15 @@ button:disabled {
 }
 .image-tools {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 0.75rem;
   gap: 1rem;
+}
+.image-tools button {
+  padding: 0.35rem 0.55rem;
+  font-size: 0.8rem;
 }
 .image-tools label {
   display: flex;

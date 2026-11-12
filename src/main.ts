@@ -29,6 +29,9 @@ const elements = {
   markers: document.querySelector<HTMLInputElement>("#markers")!,
   zoom: document.querySelector<HTMLInputElement>("#zoom")!,
   zoomValue: document.querySelector<HTMLElement>("#zoom-value")!,
+  actualPixels: document.querySelector<HTMLButtonElement>("#actual-pixels")!,
+  fitImage: document.querySelector<HTMLButtonElement>("#fit-image")!,
+  comparison: document.querySelector<HTMLElement>("#comparison")!,
   comparisonSummary: document.querySelector<HTMLElement>("#comparison-summary")!,
   comparisonProgress: document.querySelector<HTMLProgressElement>("#comparison-progress")!,
   comparisonProgressLabel: document.querySelector<HTMLElement>("#comparison-progress-label")!,
@@ -464,31 +467,33 @@ async function compareSettings(): Promise<boolean> {
   const candidates = comparisonSettings(input);
   comparisons = [];
   recommended = undefined;
+  appliedComparison = undefined;
   comparisonFile = result.file;
-  elements.comparisonSummary.textContent = `Comparing ${candidates.length} settings for ${result.file.name}: diameters ${candidates
-    .filter(function unique(value: Settings, index: number): boolean {
-      return (
-        candidates.findIndex(function same(candidate: Settings): boolean {
-          return candidate.diameter === value.diameter;
-        }) === index
-      );
-    })
-    .map(function text(value: Settings): string {
-      return String(value.diameter);
-    })
-    .join(
-      ", ",
-    )} px; k 3, 4, 6; thresholds ${showNumber(input.threshold * 0.5)}, ${showNumber(input.threshold)}, ${showNumber(input.threshold * 2)}.`;
+  elements.comparisonSummary.textContent = `Testing ${candidates.length} nearby settings for ${result.file.name}. The recommendation favors a stable count across neighboring settings, not known biological accuracy.`;
+  elements.comparisonRecommendation.textContent = "";
+  elements.comparisonApplied.textContent = "";
+  setComparisonProgress(0, candidates.length);
+  setComparisonStatus(
+    `Preparing ${candidates.length} candidates for ${result.file.name}. Decoding the image before comparison.`,
+  );
   drawComparisons();
+  elements.comparison.scrollIntoView({
+    behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+    block: "start",
+  });
   setRunning(true);
   stopped = false;
   worker = new Worker(new URL("./worker.js", import.meta.url), { type: "module" });
+  const comparisonStarted = performance.now();
+  let setupError: string | undefined;
   try {
     const image = await pixels(result.file);
     for (let index = 0; index < candidates.length && !stopped; index += 1) {
       const candidate = candidates[index];
       if (!candidate) continue;
-      setStatus(`Comparing ${index + 1} of ${candidates.length}: ${result.file.name}`);
+      setComparisonStatus(
+        `Comparing ${index + 1} of ${candidates.length}: ${comparisonSettingsText(candidate)}.`,
+      );
       const started = performance.now();
       try {
         const reply = await process(
@@ -514,21 +519,57 @@ async function compareSettings(): Promise<boolean> {
           });
       }
       drawComparisons();
+      const completed = comparisons.length;
+      setComparisonProgress(completed, candidates.length);
+      const successes = comparisons.filter(function isSuccessful(comparison: Comparison): boolean {
+        return Boolean(comparison.centers);
+      }).length;
+      const failures = completed - successes;
+      const elapsed = performance.now() - comparisonStarted;
+      const estimate =
+        completed >= 2
+          ? ` About ${formatDuration(
+              (comparisons.reduce(function sum(total: number, item: Comparison): number {
+                return total + item.elapsed;
+              }, 0) /
+                completed) *
+                (candidates.length - completed),
+            )} remaining.`
+          : "";
+      setComparisonStatus(
+        `Completed ${completed} of ${candidates.length}: ${successes} successful, ${failures} failed, ${formatDuration(elapsed)} elapsed.${estimate}`,
+      );
     }
   } catch (error: unknown) {
-    if (!stopped) setStatus(error instanceof Error ? error.message : "Comparison failed.");
+    if (!stopped) setupError = error instanceof Error ? error.message : "Comparison failed.";
   }
   worker?.terminate();
   worker = undefined;
   setRunning(false);
   if (stopped) {
-    setStatus("Batch cancelled.");
+    const successes = comparisons.filter(function isSuccessful(comparison: Comparison): boolean {
+      return Boolean(comparison.centers);
+    }).length;
+    setComparisonStatus(
+      `Comparison cancelled after ${comparisons.length} of ${candidates.length} candidates: ${successes} successful and ${comparisons.length - successes} failed.`,
+    );
+    setStatus("Comparison cancelled.");
+    return false;
+  }
+  if (setupError) {
+    setComparisonStatus(
+      `Comparison could not start for ${result.file.name}: ${setupError} No candidates were completed.`,
+    );
+    setStatus(setupError);
     return false;
   }
   const successful = comparisons.filter(function isSuccessful(comparison: Comparison): boolean {
     return Boolean(comparison.centers);
   });
   if (successful.length === 0) {
+    setComparisonStatus(
+      `Comparison finished after ${formatDuration(performance.now() - comparisonStarted)}: 0 successful and ${comparisons.length} failed.`,
+    );
     setStatus(`No comparison settings completed for ${result.file.name}.`);
     return false;
   }
@@ -548,6 +589,30 @@ async function compareSettings(): Promise<boolean> {
     }),
   );
   recommended = successful[choice];
+  if (!recommended) return false;
+  const recommendation = recommended;
+  const counts = successful.map(function count(comparison: Comparison): number {
+    return (comparison.centers?.length ?? 0) / 2;
+  });
+  const countRange = `${Math.min(...counts)}–${Math.max(...counts)}`;
+  function axisRange(axis: keyof Settings): string {
+    const nearbyCounts = successful
+      .filter(function neighboring(comparison: Comparison): boolean {
+        return (Object.keys(comparison.settings) as (keyof Settings)[]).every(function sameSetting(
+          key: keyof Settings,
+        ): boolean {
+          return key === axis || comparison.settings[key] === recommendation.settings[key];
+        });
+      })
+      .map(function count(comparison: Comparison): number {
+        return (comparison.centers?.length ?? 0) / 2;
+      });
+    return `${Math.min(...nearbyCounts)}–${Math.max(...nearbyCounts)}`;
+  }
+  elements.comparisonRecommendation.textContent = `Recommended: ${(recommendation.centers?.length ?? 0) / 2} cells with ${comparisonSettingsText(recommendation.settings)}. With the other two settings fixed, nearby counts range from ${axisRange("diameter")} across diameter, ${axisRange("k")} across k, and ${axisRange("threshold")} across threshold. Overall successful counts range from ${countRange}. This is a stability signal, not an accuracy measurement.`;
+  setComparisonStatus(
+    `Comparison finished: ${successful.length} successful and ${comparisons.length - successful.length} failed in ${formatDuration(performance.now() - comparisonStarted)}. Counts ranged from ${countRange}.`,
+  );
   drawComparisons();
   if (recommended) await applyComparisonResult(recommended);
   setStatus(
@@ -602,6 +667,8 @@ function choose(): void {
   comparisons = [];
   recommended = undefined;
   comparisonFile = undefined;
+  appliedComparison = undefined;
+  clearComparisonFeedback("Comparison feedback cleared. Choose an image to prepare a comparison.");
   drawComparisons();
   elements.download.disabled = true;
   drawRows();
@@ -609,11 +676,14 @@ function choose(): void {
 }
 function updateZoom(): void {
   const percent = Number(elements.zoom.value);
-  elements.zoomValue.textContent = `${percent}%`;
   const wrap = elements.canvas.parentElement;
-  if (!wrap || elements.canvas.width === 0) return;
+  if (!wrap || elements.canvas.width === 0) {
+    elements.zoomValue.textContent = `${percent}% fit`;
+    return;
+  }
   const fit = Math.min(1, wrap.clientWidth / elements.canvas.width);
   const scale = fit * (percent / 100);
+  elements.zoomValue.textContent = `${percent}% fit (${scale.toFixed(scale < 1 ? 2 : 1)}x pixels)`;
   elements.canvas.style.width = `${elements.canvas.width * scale}px`;
   elements.canvas.style.height = `${elements.canvas.height * scale}px`;
 }
@@ -646,6 +716,18 @@ function main(): void {
     if (result) void showPreview(result);
   });
   elements.zoom.addEventListener("input", updateZoom);
+  elements.actualPixels.addEventListener("click", function showActualPixels(): void {
+    const wrap = elements.canvas.parentElement;
+    if (!wrap || elements.canvas.width === 0) return;
+    const fit = Math.min(1, wrap.clientWidth / elements.canvas.width);
+    const actualPercent = Math.min(6400, Math.max(25, 100 / fit));
+    elements.zoom.value = String(actualPercent);
+    updateZoom();
+  });
+  elements.fitImage.addEventListener("click", function fitImage(): void {
+    elements.zoom.value = "100";
+    updateZoom();
+  });
   window.addEventListener("resize", updateZoom);
 }
 main();

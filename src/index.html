@@ -48,9 +48,10 @@
           <div class="image-tools">
             <label><input id="markers" type="checkbox" checked /> Show detections</label
             ><label
-              >Zoom <input id="zoom" type="range" min="25" max="200" value="100" />
+              >Zoom <input id="zoom" type="range" min="25" max="6400" step="25" value="100" />
               <span id="zoom-value">100%</span></label
-            >
+            ><button id="actual-pixels" type="button">Actual pixels</button
+            ><button id="fit-image" type="button">Fit image</button>
           </div>
           <div id="canvas-wrap">
             <canvas id="image" aria-label="Selected image with detected cells"></canvas>
@@ -77,7 +78,9 @@
           is a tuning heuristic, not an accuracy measurement.
         </p>
         <div class="comparison-feedback" aria-label="Comparison feedback">
-          <label id="comparison-progress-label" for="comparison-progress">Comparison progress</label>
+          <label id="comparison-progress-label" for="comparison-progress"
+            >Comparison progress</label
+          >
           <progress id="comparison-progress" max="1" value="0" aria-describedby="comparison-status">
             0 candidates complete
           </progress>

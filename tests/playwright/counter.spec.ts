@@ -281,3 +281,102 @@ test("cancellation stops a queued batch", async ({ page }) => {
   await page.getByRole("button", { name: "Cancel" }).click();
   await expect(page.getByRole("status")).toHaveText("Batch cancelled.", { timeout: 80_000 });
 });
+
+test("zoom exposes individual picks and returns to a fitted overview", async ({ page }) => {
+  await open(page);
+  await page.getByLabel("Choose images").setInputFiles(a501);
+  await page.getByRole("button", { name: "Analyze selected image", exact: true }).click();
+  await expect(page.locator("#status")).toHaveText("Selected image analysis complete.");
+  await page.getByRole("button", { name: "Actual pixels", exact: true }).click();
+  const canvas = page.locator("#image");
+  await expect
+    .poll(async () =>
+      canvas.evaluate(
+        (image: HTMLCanvasElement) => image.getBoundingClientRect().width / image.width,
+      ),
+    )
+    .toBeCloseTo(1, 2);
+  await page.locator("#zoom").fill("6400");
+  await expect
+    .poll(async () =>
+      canvas.evaluate(
+        (image: HTMLCanvasElement) => image.getBoundingClientRect().width / image.width,
+      ),
+    )
+    .toBeGreaterThan(4);
+  await page.locator("#canvas-wrap").evaluate((wrap: HTMLElement) => {
+    const image = wrap.querySelector("canvas")!;
+    const scale = image.getBoundingClientRect().width / image.width;
+    wrap.scrollLeft = 3688 * scale - wrap.clientWidth / 2;
+    wrap.scrollTop = 3326 * scale - wrap.clientHeight / 2;
+  });
+  await page.screenshot({
+    path: "/private/tmp/red-cell-experiment/feedback-zoom.png",
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: "Fit image", exact: true }).click();
+  expect(
+    await canvas.evaluate(
+      (image: HTMLCanvasElement) =>
+        image.getBoundingClientRect().width <= image.parentElement!.clientWidth + 1,
+    ),
+  ).toBe(true);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect
+    .poll(async () =>
+      canvas.evaluate(
+        (image: HTMLCanvasElement) =>
+          image.getBoundingClientRect().width <= image.parentElement!.clientWidth + 1,
+      ),
+    )
+    .toBe(true);
+});
+
+test("comparison reports progress, explains its recommendation, and confirms applied settings", async ({
+  page,
+}) => {
+  await open(page);
+  const crop = await realImageCrop(page);
+  await page.getByLabel("Choose images").setInputFiles(crop);
+  await page.getByRole("button", { name: "Compare settings", exact: true }).click();
+  await expect(page.locator("#comparison-progress")).toBeVisible();
+  await expect(page.locator("#comparison-status")).toHaveAttribute("aria-live", "polite");
+  await expect(page.locator("#comparison-progress")).toHaveAttribute("value", "27", {
+    timeout: 80_000,
+  });
+  await expect(page.locator("#comparison-applied")).toContainText("Analyze images");
+  await expect(page.locator("#comparison-recommendation")).toContainText(/diameter/i);
+  await expect(page.locator("#comparison-recommendation")).toContainText(/threshold/i);
+  await expect(page.locator("#comparison-rows")).toContainText("Recommended");
+  await expect(page.locator("#comparison-rows")).toContainText("Applied");
+  await page.screenshot({
+    path: "/private/tmp/red-cell-experiment/comparison-feedback.png",
+    fullPage: true,
+  });
+});
+
+test("cancelled comparison preserves partial progress rather than claiming completion", async ({
+  page,
+}) => {
+  await open(page);
+  const crop = await realImageCrop(page);
+  await page.getByLabel("Choose images").setInputFiles(crop);
+  await page.route("**/worker.js", async (route) => {
+    const response = await route.fetch();
+    await route.fulfill({
+      response,
+      body: `${await response.text()}\nconst originalHandler = self.onmessage; self.onmessage = async event => { await new Promise(resolve => setTimeout(resolve, 60)); return originalHandler.call(self, event); };`,
+    });
+  });
+  await page.getByRole("button", { name: "Compare settings", exact: true }).click();
+  await expect
+    .poll(async () => Number(await page.locator("#comparison-progress").getAttribute("value")))
+    .toBeGreaterThanOrEqual(2);
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(page.locator("#comparison-status")).toContainText(/cancelled/i);
+  const completed = Number(await page.locator("#comparison-progress").getAttribute("value"));
+  expect(completed).toBeGreaterThanOrEqual(2);
+  expect(completed).toBeLessThan(27);
+  await expect(page.locator("#comparison-rows tr")).toHaveCount(completed);
+  await expect(page.getByRole("button", { name: "Compare settings", exact: true })).toBeEnabled();
+});
