@@ -25,7 +25,7 @@ The supplied DoG Picker paper says maps are normalized but does not give a formu
 
 ## Design philosophy
 
-This is an evidence-led technical redesign under **Use the scientific method** and **Keep it simple (KISS)**. A scalar per-image method must earn shipment before a local threshold field, multi-scale cache, watershed, or preprocessing stage is added. The rejected alternative is implementing every plausible mechanism before real-image evidence shows it solves a measured problem.
+This is an evidence-led technical redesign under **Use the scientific method** and **Keep it simple (KISS)**. Prefer a scalar per-image method when its evidence is competitive; a spatial or multi-scale method may ship directly when it earns the added complexity. The rejected alternative is implementing every plausible mechanism before real-image evidence shows it solves a measured problem.
 
 ## Scope
 
@@ -59,9 +59,10 @@ This is an evidence-led technical redesign under **Use the scientific method** a
 | H2 | Area plus peaks/persistence flags clumps. | Blob records and overlays. | Reject area trigger. |
 | H3 | Roundness or moment adds evidence beyond area. | One-feature-at-a-time ablation. | Retain only measured benefit. |
 | H4 | Local re-thresholding improves flagged clumps. | Split/merge audit. | Reject recursion. |
-| H5 | Second scale helps apparent-size variation. | Metrics, memory, time. | Reject multi-scale cache. |
+| H5 | Second scale helps apparent-size variation. | Metrics, memory, time. | Reject multi-scale pass. |
 | H6 | Seeded watershed changes count decisions. | Seed/mask audit. | Reject boundary-only watershed. |
 | H7 | Correction/normalization helps measured cause. | Before/after report. | Do not ship preprocessing. |
+| H8 | Successful arms have a useful interaction. | One justified hybrid comparison. | Select the simpler arm. |
 
 ## Architecture boundaries and ownership
 
@@ -70,17 +71,17 @@ This is an evidence-led technical redesign under **Use the scientific method** a
 | Milestone | Component | Review boundary |
 | --- | --- | --- |
 | M1-M7 | Native diagnostics | Original pixels, raw DoG, no runtime oracle. |
-| M8-M14 | Candidate evaluation | One variable per arm; common report. |
-| M15-M16 | Algorithm/result decision | Architecture-agent assessment and provenance. |
-| M17-M19 | Rust/Wasm/manual boundary | Typed result, memory, cancellation, parity. |
-| M20-M22 | Student workflow/output | Primary action, advanced path, truthful views/CSV. |
-| M23 | Closure | Evidence, build, docs, fallback release. |
+| M8-M18 | Candidate evaluation | One variable per arm; common report. |
+| M19-M20 | Algorithm/result decision | Architecture-agent assessment and provenance. |
+| M21-M23 | Rust/Wasm/manual boundary | Typed result, memory, cancellation, parity. |
+| M24-M26 | Student workflow/output | Primary action, advanced path, truthful views/CSV. |
+| M27 | Closure | Evidence, build, docs, fallback release. |
 
 ### File scope
 
 | File or directory | Intended change | Canonical source |
 | --- | --- | --- |
-| `devel/measure_blob_areas.py` | Components, area, equivalent diameter, peaks, persistence, roundness, moment. | `generated/blob_area_experiment/`. |
+| `devel/measure_blob_areas.py` | Components, area, equivalent diameter, peaks, persistence, roundness, moment. | Generates `generated/blob_area_experiment/` from the native Rust probe. |
 | `devel/benchmark_automatic_methods.py` | Common candidate evaluator. | Ignored reports and overlays. |
 | `rust/examples/threshold_probe.rs` | Exact response export only if diagnostics require it. | Rust core contract. |
 | `rust/src/lib.rs`, `rust/src/prepared_image.rs` | Selected automatic core and compact metadata only. | Native tests/Wasm export. |
@@ -109,20 +110,31 @@ This is an evidence-led technical redesign under **Use the scientific method** a
 | M12 | Test background pass | One evidenced correction. | Avoid decorative filtering. |
 | M13 | Test regional threshold map | Adaptive thresholds across sparse/dense regions. | Test spatial adaptation. |
 | M14 | Validate regional map | Vary region scale and inspect seams. | Test map robustness. |
-| M14a | Test recursive clumps | Re-threshold flagged overlapping blobs. | Test local declumping. |
-| M14b | Test multi-scale | Add one bounded second scale. | Test size adaptation. |
-| M14c | Test watershed | Use DoG seeds in flagged clumps. | Test seed-affecting splitting. |
-| M15 | Select or reject | Evidence decision. | Freeze compact contract. |
-| M16 | Specify provenance | Scalar/local forms. | Reproducible output. |
-| M17 | Implement native core | Selected detector. | Valid centers/metadata. |
-| M18 | Extend Wasm | Transport result. | Preserve lifecycle. |
-| M19 | Preserve manual | Advanced comparison intact. | Research safety. |
-| M20 | Simplify Single | Automatic Analyze primary. | Student success. |
-| M21 | Simplify Batch | Independent image analysis. | No tuning-image dependence. |
-| M22 | Inspect output | Views, overlays, CSV agree. | Transparent results. |
-| M23 | Close release | Verify and document. | Reviewable build. |
+| M15 | Test recursive clumps | Re-threshold flagged overlapping blobs. | Test local declumping. |
+| M16 | Test multi-scale | Add one bounded second scale. | Test size adaptation. |
+| M17 | Test watershed | Use DoG seeds in flagged clumps. | Test seed-affecting splitting. |
+| M18 | Test justified hybrid | Combine only complementary successful arms. | Test interaction. |
+| M19 | Select or reject | Evidence decision. | Freeze compact contract. |
+| M20 | Specify provenance | Scalar/local forms. | Reproducible output. |
+| M21 | Implement native core | Selected detector. | Valid centers/metadata. |
+| M22 | Extend Wasm | Transport result. | Preserve lifecycle. |
+| M23 | Preserve manual | Advanced comparison intact. | Research safety. |
+| M24 | Simplify Single | Automatic Analyze primary. | Student success. |
+| M25 | Simplify Batch | Independent image analysis. | No tuning-image dependence. |
+| M26 | Inspect output | Views, overlays, CSV agree. | Transparent results. |
+| M27 | Close release | Verify and document. | Reviewable build. |
 
 Every milestone has one owner role. The role owns its outcome and verification, while the manager coordinates dependencies.
+
+The initial area/shape diagnostic is complete; full characterization, cutoff persistence,
+conditional feature ablation, and algorithm comparisons remain planned. The manager assigns
+one agent to each dispatched task. Parallel arms use separate experimental files and a common
+frozen evaluator. A single integration owner lands shared controller, worker, and UI edits
+sequentially; shared-file preparation and read-only reviews may run in parallel.
+
+The reusable Rust/Wasm blob-measurement port was also completed during planning. Reuse
+`rust/src/blob_features.rs` and its worker contract; this does not complete the later
+automatic-detector selection or student workflow milestones.
 
 | Milestone | Owner role |
 | --- | --- |
@@ -133,17 +145,18 @@ Every milestone has one owner role. The role owns its outcome and verification, 
 | M10-M12 | Scalar-method researcher |
 | M13 | Spatial-threshold researcher |
 | M14 | Spatial-threshold verifier |
-| M14a | Recursive-clump researcher |
-| M14b | Multi-scale researcher |
-| M14c | Watershed researcher |
-| M15 | Architecture agent |
-| M16 | Interface-contract architect |
-| M17 | Rust implementation engineer |
-| M18 | Wasm boundary engineer |
-| M19 | Regression engineer |
-| M20-M21 | Interaction engineer |
-| M22 | Result-presentation engineer |
-| M23 | Release-verification engineer |
+| M15 | Recursive-clump researcher |
+| M16 | Multi-scale researcher |
+| M17 | Watershed researcher |
+| M18 | Hybrid-method researcher |
+| M19 | Architecture agent |
+| M20 | Interface-contract architect |
+| M21 | Rust implementation engineer |
+| M22 | Wasm boundary engineer |
+| M23 | Regression engineer |
+| M24-M25 | Interaction engineer |
+| M26 | Result-presentation engineer |
+| M27 | Release-verification engineer |
 
 ### Milestone: M1 Freeze baseline
 
@@ -250,7 +263,7 @@ Every milestone has one owner role. The role owns its outcome and verification, 
 - Deliverables: One correction only if M2 demonstrates a corresponding brightness/background condition.
 - Workstreams: Preprocessing arm.
 - Entry criteria: Measured condition exists.
-- Exit criteria: Keep only if common evidence improves without a clear regression; otherwise remove scratch code and record rejection.
+- Exit criteria: Keep only if common evidence improves without a clear regression; otherwise remove scratch code and record rejection. If no corresponding condition exists, record this arm as not applicable, satisfying its dependency without an experiment.
 - Parallel-plan ready: Yes with M10-M11/M13-M14.
 
 ### Milestone: M13 Test regional threshold map
@@ -260,7 +273,7 @@ Every milestone has one owner role. The role owns its outcome and verification, 
 - Workstreams: Spatial adaptive arm.
 - Entry criteria: Image-characterization proxy and common evaluator exist.
 - Exit criteria: Report separately shows sparse and dense-region decisions, threshold-map range, location consistency, and actual mask. It rejects a field that only adds seams or noise.
-- Parallel-plan ready: Yes with M10-M12/M14-M14c.
+- Parallel-plan ready: Yes with M10-M12 and M15-M17; M14 follows this result.
 
 ### Milestone: M14 Validate regional map
 
@@ -269,110 +282,119 @@ Every milestone has one owner role. The role owns its outcome and verification, 
 - Workstreams: Spatial-threshold verification.
 - Entry criteria: M13 produces an actual threshold map and mask.
 - Exit criteria: The smallest robust region representation is selected, or the regional arm is rejected for seam/instability behavior.
-- Parallel-plan ready: Yes with M10-M12 and M14a-M14c.
+- Parallel-plan ready: Yes with M10-M12 and M15-M17.
 
-### Milestone: M14a Test recursive clumps
+### Milestone: M15 Test recursive clumps
 
 - Depends on: M3-M9.
 - Deliverables: Recursive local re-thresholding only inside blobs flagged by area, peaks, persistence, and any M6 cue retained by ablation.
 - Workstreams: Local declumping evaluation.
 - Entry criteria: Blob/cue records and hard gallery exist.
 - Exit criteria: The report separates isolated/clump changes, logs local recipe, and rejects unexplained splits.
-- Parallel-plan ready: Yes with M10-M14 and M14b-M14c.
+- Parallel-plan ready: Yes with M10-M14 and M16-M17.
 
-### Milestone: M14b Test multi-scale
+### Milestone: M16 Test multi-scale
 
 - Depends on: M2, M8-M9.
 - Deliverables: One second-scale arm with deterministic overlap reduction in original coordinates.
 - Workstreams: Scale evaluation.
 - Entry criteria: Diameter proxy supports the test.
 - Exit criteria: Report includes uniqueness, locations, time, and peak-memory estimate; it proposes no all-scale cache.
-- Parallel-plan ready: Yes with M10-M14a and M14c.
+- Parallel-plan ready: Yes with M10-M15 and M17.
 
-### Milestone: M14c Test watershed
+### Milestone: M17 Test watershed
 
 - Depends on: M3, M8-M9.
 - Deliverables: DoG-seeded watershed restricted to flagged clumps and a seed-change audit.
 - Workstreams: Watershed evaluation.
 - Entry criteria: Clump masks and DoG seeds exist.
 - Exit criteria: Report separates seed loss, over-split, merge, and boundary-only changes. Boundary-only watershed is rejected for counting.
-- Parallel-plan ready: Yes with M10-M14b.
+- Parallel-plan ready: Yes with M10-M16.
 
-### Milestone: M15 Select or reject
+### Milestone: M18 Test one justified hybrid
 
-- Depends on: M10-M14c.
+- Depends on: M10-M17.
+- Deliverables: One combined pipeline only if two successful arms address distinct remaining failures; otherwise a not-applicable receipt.
+- Workstreams: Method interaction evaluation.
+- Entry criteria: Every individual arm has a result or documented rejection.
+- Exit criteria: Compare the combination with each constituent using the common evaluator. Retain it only for incremental benefit; otherwise select the simpler constituent. This is a research comparison, not a runtime ensemble or method menu.
+- Parallel-plan ready: No; the constituent evidence must exist first.
+
+### Milestone: M19 Select or reject
+
+- Depends on: M10-M17 and M18.
 - Deliverables: One-sentence algorithm contract, retained/rejected record, negative-result fallback.
 - Workstreams: Architecture assessment.
 - Entry criteria: Common metrics and hard-gallery evidence for every arm.
 - Exit criteria: Architecture agent accepts the simplest Pareto-competitive method with no clear correctness failure. If none qualifies, `fixed-dog-picker-1` ships as automatic fallback without adaptive claim.
 - Parallel-plan ready: No; implementation needs the decision.
 
-### Milestone: M16 Specify provenance
+### Milestone: M20 Specify provenance
 
-- Depends on: M15.
+- Depends on: M19.
 - Deliverables: `AutomaticResult` with method/version, effective diameter/k, scalar cutoff or tagged local strategy.
 - Workstreams: Result contract.
 - Entry criteria: Selected contract accepted.
-- Exit criteria: Scalar stays scalar. Local stores deterministic recipe/version and summary range, never a misleading scalar or huge pixel map.
-- Parallel-plan ready: Yes with M17 planning.
+- Exit criteria: Scalar stays scalar. Local stores deterministic recipe/version and summary range, never a misleading scalar or huge pixel map. A multi-scale winner records its scale recipe and any per-center scale needed to reproduce overlays.
+- Parallel-plan ready: Yes with M21 planning.
 
-### Milestone: M17 Implement native core
+### Milestone: M21 Implement native core
 
-- Depends on: M15-M16.
+- Depends on: M19-M20.
 - Deliverables: Deterministic selected Rust method and focused tests.
 - Workstreams: Rust core.
 - Entry criteria: Inputs, outputs, and invalid states documented.
 - Exit criteria: Validated original-pixel centers/effective metadata return without reference reads.
-- Parallel-plan ready: Yes with M20 preparation.
+- Parallel-plan ready: Yes with M24 preparation.
 
-### Milestone: M18 Extend Wasm
+### Milestone: M22 Extend Wasm
 
-- Depends on: M16-M17.
+- Depends on: M20-M21.
 - Deliverables: Typed automatic worker reply/client method.
 - Workstreams: Wasm boundary.
 - Entry criteria: Native contract passes.
 - Exit criteria: 40 MP validation, stale-reply protection, cancellation, freeing, and one-latest-response memory remain.
-- Parallel-plan ready: Yes with M19-M20.
+- Parallel-plan ready: Preparation for M23-M24 may run beside this work; protocol integration and parity follow this milestone.
 
-### Milestone: M19 Preserve manual path
+### Milestone: M23 Preserve manual path
 
-- Depends on: M18.
+- Depends on: M22.
 - Deliverables: Manual detector, preview, comparison, representative-median labeling remain Advanced.
 - Workstreams: Regression boundary.
 - Entry criteria: Automatic transport exists.
 - Exit criteria: Manual native/Wasm parity and comparison browser flows pass except deliberate primary-action wording.
-- Parallel-plan ready: Yes with M20-M22.
+- Parallel-plan ready: Preparation for M24-M26 may run beside the regression assessment; integration follows its result.
 
-### Milestone: M20 Simplify Single
+### Milestone: M24 Simplify Single
 
-- Depends on: M18-M19.
+- Depends on: M22-M23.
 - Deliverables: Automatic Analyze primary; manual controls/comparison in Advanced settings.
 - Workstreams: Student workflow.
 - Entry criteria: Controller receives automatic provenance.
 - Exit criteria: Student chooses one image, analyzes, sees count/method/overlay, and does not need a comparison.
-- Parallel-plan ready: Yes with M21-M22.
+- Parallel-plan ready: UI preparation can run beside M25-M26; shared controller edits land sequentially under one owner.
 
-### Milestone: M21 Simplify Batch
+### Milestone: M25 Simplify Batch
 
-- Depends on: M18-M19.
+- Depends on: M22-M23.
 - Deliverables: Independent characterization/count per image and per-row provenance.
 - Workstreams: Batch workflow.
 - Entry criteria: Sequential automatic result exists.
 - Exit criteria: No tuning image is required. A 96-file repeated-real-image stress run measures throughput, not 96 independent biology samples.
-- Parallel-plan ready: Yes with M20/M22.
+- Parallel-plan ready: Independent preparation can run beside M24/M26; shared controller edits land sequentially under one owner.
 
-### Milestone: M22 Make output inspectable
+### Milestone: M26 Make output inspectable
 
-- Depends on: M16 and M18-M21.
+- Depends on: M20 and M22-M25.
 - Deliverables: Raw, DoG, actual mask, centers, CSV agree with applied method.
 - Workstreams: Viewer/export.
 - Entry criteria: Metadata supports method-faithful rendering.
 - Exit criteria: Scalar masks use scalar cutoff; selected local methods render actual local mask; CSV is compact and reproducible.
-- Parallel-plan ready: Yes with M23 preparation.
+- Parallel-plan ready: Yes with M27 preparation.
 
-### Milestone: M23 Close release
+### Milestone: M27 Close release
 
-- Depends on: M17-M22.
+- Depends on: M21-M26.
 - Deliverables: Build, tests, receipt, decision, workflow docs, changelog, verification.
 - Workstreams: Release evidence.
 - Entry criteria: Selected or fallback path complete.
@@ -381,10 +403,10 @@ Every milestone has one owner role. The role owns its outcome and verification, 
 
 ## Decision tree
 
-1. Run M10-M14 with the common evaluator and inspect their galleries.
+1. Run M10-M17 with the common evaluator, inspect their galleries, and complete or explicitly skip M18 according to its entry evidence.
 2. Reject nondeterminism, provenance/display mismatch, or measured false split/merge behavior that one bounded repair cannot resolve.
 3. Prefer the simplest Pareto-competitive method: no broad per-image error regression, no unacceptable worst-image failure, stable locations under image-derived perturbations, and workable sequential runtime/memory.
-4. Ship a scalar winner before any local field. Ship local only if it wins and M16 can represent/preview it truthfully.
+4. Ship the selected winner. A spatial or multi-scale winner must have truthful provenance and actual-mask rendering through M20/M26; fix those contracts before delivery. If its correctness cannot be established, use the next qualifying simpler method or the named baseline fallback.
 5. If no candidate qualifies, finish with named fixed baseline and preserve the report without adaptive-accuracy claim.
 
 ## Test and verification strategy
@@ -397,9 +419,15 @@ Totals support count error only. They cannot establish localization precision/re
 
 ## Migration and compatibility policy
 
-Manual scalar settings retain current rounding and threshold >0.00001. Existing manual results retain settings and `dog-picker-1` provenance. Automatic results add explicit method/version and never silently rewrite manual results. Images stay browser-local; no storage migration or network change is needed.
+Manual and automatically estimated scalar settings use the existing two-decimal diameter/k and five-decimal cutoff rounding before processing, with threshold >0.00001. A spatial recipe defines its raw-response units, quantization, and the same positive-cutoff constraint explicitly. Existing manual results retain settings and `dog-picker-1` provenance. Automatic results add explicit method/version and never silently rewrite manual results. Images stay browser-local; no storage migration or network change is needed.
 
-The selected method preserves existing trust boundaries: exact RGBA length/dimensions, 40 MP cap, and finite validated settings before numerical work; quoted CSV with formula protection; sequential bounded per-image memory; and cancellation responsiveness. Reuse the current Rust/TypeScript stack first. If evidence requires a new dependency, verify its latest stable Cargo or npm release at execution rather than pinning an old version for this plan.
+The selected method preserves existing trust boundaries: exact RGBA length/dimensions, 40 MP cap, and finite validated settings before numerical work (ASVS 2.2.1/2.2.3); quoted CSV with formula protection (ASVS 1.2.10); sequential bounded per-image memory and cancellation responsiveness (ASVS 15.2.2). Reuse the current Rust/TypeScript stack first. If evidence requires a new dependency, verify its latest stable Cargo or npm release at execution rather than pinning an old version for this plan.
+
+The current area/shape evidence and rerun command are in
+[BLOB_AREA_EXPERIMENT.md](../../BLOB_AREA_EXPERIMENT.md). Reference Appion code remains
+read-only under OTHER_REPOS/leginon and is not a build/runtime prerequisite. Preserve
+the named baseline fallback as fixed sensitivity; do not describe it as image-specific
+or spatially adaptive detection when all adaptive arms are rejected.
 
 ## Risk register
 
@@ -414,7 +442,7 @@ The selected method preserves existing trust boundaries: exact RGBA length/dimen
 
 ## Rollout and release checklist
 
-- [ ] Obtain architecture-agent acceptance of M15's algorithm sentence.
+- [ ] Obtain architecture-agent acceptance of M19's algorithm sentence.
 - [ ] Build Pages with the repository production command.
 - [ ] Run focused native, Node, browser contracts and manual flows.
 - [ ] Exercise real-image automatic Single, heterogeneous Batch, cancellation, CSV, viewer states.
@@ -423,17 +451,18 @@ The selected method preserves existing trust boundaries: exact RGBA length/dimen
 
 ## Documentation close-out requirements
 
-- Active plan / progress tracker: this document until M23.
+- Active plan / progress tracker: this document until M27.
 - Experiments: `BLOB_AREA_EXPERIMENT.md` and `AUTOMATIC_DETECTOR_EXPERIMENT.md` include commands, boundaries, reports, rejected arms.
-- Decision: update `DESIGN_DECISIONS.md` only after M15.
-- Workflow: update `WORKFLOW_MODES.md` after M20-M21.
+- Decision: record the selected automatic detector in `DESIGN_DECISIONS.md` after M19.
+  The separately authorized Rust/Wasm mask-measurement primitive is already a settled decision.
+- Workflow: update `WORKFLOW_MODES.md` after M24-M25.
 - Release: update `CHANGELOG.md` and `VERIFICATION.md` with shipped behavior and limits.
-- Archive: use `git mv` after M23; a human commits.
+- Archive: use `git mv` after M27; a human commits.
 
 ## Open questions and decisions needed
 
 - Manager/subagent decision procedure:
-  - Decision owner or dedicated class: architecture agent at M15.
+  - Decision owner or dedicated class: architecture agent at M19.
   - Evidence and decision rule: common report, overlays, provenance feasibility, runtime/memory, and decision tree.
 - Non-blocking follow-up: independent point/mask annotations improve future validation but do not block this plan.
 - Non-blocking follow-up: skip M12 when M2 finds no measured background/brightness condition.

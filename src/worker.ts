@@ -1,16 +1,20 @@
 /// <reference lib="webworker" />
-import init, { PreparedImage, preview } from "../rust/pkg/cell_detector.js";
+import init, { PreparedImage, measure_blobs, preview } from "../rust/pkg/cell_detector.js";
 
-interface Request {
+type Request = {
   id: number;
-  kind?: "detect" | "preview";
-  rgba?: ArrayBuffer;
   width: number;
   height: number;
-  diameter: number;
-  k: number;
-  threshold: number;
-}
+} & (
+  | { kind: "blobs"; mask: ArrayBuffer }
+  | {
+      kind?: "detect" | "preview";
+      rgba?: ArrayBuffer;
+      diameter: number;
+      k: number;
+      threshold: number;
+    }
+);
 
 const ready = init({ module_or_path: new URL("./wasm/cell_detector_bg.wasm", import.meta.url) });
 let prepared: { image: PreparedImage; width: number; height: number } | undefined;
@@ -18,6 +22,16 @@ self.onmessage = async (event: MessageEvent<Request>): Promise<void> => {
   const request = event.data;
   try {
     await ready;
+    if (request.kind === "blobs") {
+      if (!(request.mask instanceof ArrayBuffer)) throw new Error("Blobs require a binary mask.");
+      const blobFeatures = measure_blobs(
+        new Uint8Array(request.mask),
+        request.width,
+        request.height,
+      );
+      self.postMessage({ id: request.id, blobFeatures }, { transfer: [blobFeatures.buffer] });
+      return;
+    }
     if (request.kind === "preview") {
       if (!request.rgba) throw new Error("Preview requires image pixels.");
       const packed = preview(

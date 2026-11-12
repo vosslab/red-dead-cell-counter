@@ -5,10 +5,21 @@ use image::{ImageBuffer, Luma};
 use imageproc::filter::gaussian_blur_f32;
 use wasm_bindgen::prelude::*;
 
+mod blob_features;
 mod prepared_image;
+pub use blob_features::measure_blobs_core;
 pub use prepared_image::PreparedImage;
 
 const MAX_PIXELS: usize = 40_000_000;
+
+/// Measure binary-mask blobs for browser callers.
+///
+/// Zero bytes are background and every nonzero byte is foreground. See
+/// [`measure_blobs_core`] for the eight-value record layout.
+#[wasm_bindgen]
+pub fn measure_blobs(mask: &[u8], width: u32, height: u32) -> Result<Vec<f64>, JsValue> {
+    measure_blobs_core(mask, width, height).map_err(|error| JsValue::from_str(&error))
+}
 
 #[derive(Clone, Copy)]
 struct Candidate {

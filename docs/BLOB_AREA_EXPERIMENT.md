@@ -23,16 +23,22 @@ pixel sides, replacing a two-side contribution with `sqrt(2)`, matching
 Roundness is a compactness measurement: circles tend toward one and elongated shapes
 tend lower. Raster perimeter estimates can exceed one, so the diagnostic does not clamp
 them. The inertia ratio is one for an isotropic mask and rises with elongation; it is
-undefined for a one-pixel-wide degenerate mask.
+undefined when the smaller covariance eigenvalue is nonpositive, as for a single pixel
+or an exactly collinear mask.
 
 These are threshold-mask measurements, not raw-red fluorescence area, a physical cell
 cross-section, or independent biological truth. The old unused Appion `_moment()` is
 intensity-weighted and changes with brightness, so it is not included. The PIK column
 named `moment` currently writes roundness.
+These are distinct shape measures: roundness depends on perimeter, while inertia depends
+on the distribution of area about the centroid. Normalization does not make them equivalent.
 The supplied human totals are deliberately not used to select a threshold, fit an
 area rule, or judge the number of cells in an individual blob.
 
 Run it from the repository root:
+
+Use the existing Cargo toolchain and Python NumPy, SciPy, Pillow, and scikit-image
+environment; the shared threshold-probe helper imports scikit-image.
 
 ```sh
 source source_me.sh && python3 devel/measure_blob_areas.py
@@ -66,13 +72,15 @@ rule by itself: 25 multi-center blobs had area at or below the 124 px2 median fo
 single-center blobs. Threshold changes both mask footprint and fragmentation; H501
 has 2,783, 2,642, and 2,400 blobs at 0.05, 0.1, and 0.2 respectively.
 
-Shape adds a useful but still non-decisive clump signal. At threshold 0.1, 5,247
+Shape differs between the existing pick groups. At threshold 0.1, 5,247
 single-center blobs had median roundness 0.930 and median inertia ratio 1.294. The
 691 multi-center blobs had median roundness 0.689 and median inertia ratio 3.139.
 Only seven multi-center blobs were at least as round as the single-center median, while
 61 had inertia ratio no larger than the single-center median. This separates many
 bridged or elongated clusters without establishing that an unusual blob contains a
 particular number of cells.
+These marginal distributions do not establish an improvement beyond area alone;
+the planned conditional ablation must test that separately.
 
 The earlier documented difficult regions all formed one threshold-0.1 blob while
 containing the existing peak picks below. The H501 screenshot field is a broader
@@ -88,9 +96,13 @@ stress case.
 ## Decision for the automatic-detector investigation
 
 Keep threshold-mask area and roundness as image-derived clump cues. A proposed clump
-pass should use them only to decide where to inspect or re-threshold a region; it must
-retain the existing DoG centers as seeds and compare any added or removed centers against
+pass should use them only to decide where to inspect or re-threshold a region; it should
+use the existing DoG centers as seed candidates and compare any added or removed centers against
 a non-adaptive baseline. The inertia ratio is a second shape cue for the next experiment,
 not a third automatic rejection criterion. Test whether it adds information beyond area
 and roundness before retaining it. Do not infer a biological count directly from any
 shape feature or tune a rule to the eight supplied totals.
+
+The [automatic counting plan](active_plans/active/automatic_image_counting_plan.md)
+separates image-specific selection, regional threshold maps, and clump refinement.
+Roundness and inertia are research cues here; the deployed detector does not yet use them.

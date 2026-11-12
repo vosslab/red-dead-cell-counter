@@ -1,5 +1,68 @@
 # Verification
 
+## Rust/Wasm blob measurements
+
+On 2026-11-12, ported binary-mask blob geometry to portable Rust and the production
+Pages worker. [BLOB_MEASUREMENTS.md](BLOB_MEASUREMENTS.md) specifies eight-connectivity,
+nonzero foreground, field order, error handling, Appion-style roundness, and binary
+covariance inertia ratio. The new routine is available to browser callers; existing
+cell counts, scalar thresholds, previews, and manual comparison behavior remain unchanged.
+It does not yet select an automatic detector or use shape to accept/reject cells.
+
+The Python experiment measured all eight real calibration images at raw DoG cutoff
+0.1. One-pick blobs had median roundness 0.930 and inertia ratio 1.294; multi-pick blobs
+had medians 0.689 and 3.139. These groups contain existing detector picks, not independently
+labeled cells. The full area/shape receipt is [BLOB_AREA_EXPERIMENT.md](BLOB_AREA_EXPERIMENT.md).
+
+Python, native Rust, and the final Chromium worker agreed across all 5,939 components
+in the eight full-size real-image masks. Anchors and areas matched exactly; centroids
+used absolute tolerance 1e-7 pixels, equivalent diameter/roundness used relative 1e-8,
+and inertia ratio used relative 1e-6. Degenerate inertia stayed undefined/NaN. The worker
+test also verifies the Float64Array payload, connectivity, geometry, and invalid-mask error.
+
+Reproduce the native oracle and temporary masks with:
+
+```sh
+source source_me.sh && python3 devel/verify_blob_features.py
+```
+
+Build using `WASM_PACK_CACHE=/Users/vosslab/.cache/wasm-pack ./build_github_pages.sh`,
+serve the repository root on localhost port 4188, then run:
+
+```sh
+PLAYWRIGHT_BROWSERS_PATH=/Users/vosslab/.cache/ms-playwright node tests/playwright/verify_blob_features.mjs http://127.0.0.1:4188
+```
+
+The harness opens the actual `/dist/` worker, records ignored metrics under
+`generated/blob_feature_parity/`, and removes its large temporary mask files. This run
+measured worker mask geometry at 10.6-21.8 ms per image; rAF intervals had median and
+maximum 16.7 ms. These are single-run advisory measurements of mask geometry, excluding
+JPEG decoding and DoG filtering, not an end-to-end detector speedup or cross-browser claim.
+
+The release artifact grew modestly:
+
+| Artifact | Previous raw / gzip bytes | Blob port raw / gzip bytes |
+| --- | ---: | ---: |
+| Wasm | 45,911 / 20,666 | 50,455 / 22,813 |
+| Worker JS | 4,371 / 1,864 | 4,940 / 2,024 |
+
+Pages build, type/lint/format checks, six design tests, 12 Rust tests, Clippy, and 482
+focused repository checks passed. All 21 Chromium workflows passed with one worker
+(including the 96-image baseline batch). The first seven-worker run had six startup/timeouts;
+all six passed unchanged with one worker, followed by the complete one-worker pass.
+The failed snapshots showed the saloon button still disabled before main.js enabled it;
+that startup path never invokes the detector worker. The parallel serving/startup cause
+was not conclusively isolated, so this receipt does not claim a clean parallel run.
+
+The [automatic counting plan](active_plans/active/automatic_image_counting_plan.md)
+contains 27 atomic milestones with one owner each and acyclic dependencies. It separates
+image-specific and regional thresholds, recursive clumps, multi-scale DoG, watershed,
+and one conditional hybrid comparison. Additional annotations are a validation gap,
+not a human gate. This turn implemented the measurement primitive and investigation
+tools; the later automatic-selection/student-workflow milestones remain planned.
+No independent biological accuracy, live deployment of this revision, or other browser
+engine was verified.
+
 ## Processing-guide clarification
 
 On 2026-11-12, replaced the three similar viewer screenshots with a labeled

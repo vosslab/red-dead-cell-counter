@@ -51,6 +51,12 @@ def shape(mask: np.ndarray) -> tuple[float, float | None]:
 	return compactness, float(eigenvalues[1] / eigenvalues[0])
 
 
+def safe_csv_cell(value: str) -> str:
+	"""Prefix spreadsheet formula-leading values at the CSV output boundary."""
+	# ASVS 1.2.10: prevent CSV and spreadsheet formula injection.
+	return f"'{value}" if value.startswith(("=", "+", "-", "@", "\t", "\0")) else value
+
+
 def blob_rows(response: np.ndarray, centers: np.ndarray, threshold: float) -> list[dict[str, float | int | None]]:
 	"""Return 8-connected mask areas and baseline DoG-center memberships."""
 	labels, blob_count = ndimage.label(response >= threshold, structure=CONNECTIVITY)
@@ -156,13 +162,19 @@ def self_check() -> None:
 	compact = np.array([[1, 1, 1], [1, 1, 1], [1, 1, 1]], dtype=bool)
 	elongated = np.ones((3, 9), dtype=bool)
 	compactness, compact_ratio = shape(compact)
-	_, elongated_ratio = shape(elongated)
+	elongated_compactness, elongated_ratio = shape(elongated)
 	shifted = np.pad(compact, ((2, 0), (4, 0)))
 	shifted_compactness, shifted_ratio = shape(shifted)
 	if compact_ratio is None or elongated_ratio is None or not elongated_ratio > compact_ratio:
 		raise RuntimeError("inertia-ratio shape check failed")
+	if not compactness > elongated_compactness:
+		raise RuntimeError("roundness shape check failed")
 	if abs(compactness - shifted_compactness) > 1e-12 or abs(compact_ratio - shifted_ratio) > 1e-12:
 		raise RuntimeError("binary-shape translation-invariance check failed")
+	if safe_csv_cell("normal-image.jpg") != "normal-image.jpg":
+		raise RuntimeError("normal CSV filename check failed")
+	if any(safe_csv_cell(value) != f"'{value}" for value in ("=1+1.jpg", "+name.jpg", "-name.jpg", "@name.jpg", "\tname.jpg", "\0name.jpg")):
+		raise RuntimeError("formula-leading CSV filename check failed")
 
 
 def main() -> None:
@@ -185,7 +197,7 @@ def main() -> None:
 		current_rows: list[dict[str, object]] = []
 		for threshold in THRESHOLDS:
 			for row in blob_rows(response, centers, threshold):
-				current_rows.append({"image": image.name, **row})
+				current_rows.append({"image": safe_csv_cell(image.name), **row})
 		all_rows.extend(current_rows)
 		summary = summarize(image.name, centers, current_rows)
 		summary["documented_crops"] = [crop_summary(response, centers, crop) for crop in CROPS.get(image.name, ())]

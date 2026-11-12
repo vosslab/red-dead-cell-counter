@@ -4,9 +4,15 @@
 
 ### Additions and New Features
 
-- Added a reproducible native-Rust-response blob-area diagnostic on all eight real
-  calibration images. Recorded connected-mask areas, equivalent diameters, and existing
-  peak memberships without treating those memberships as biological ground truth.
+- Ported eight-connected binary blob measurements to Rust/WASM and exposed them through
+  the production worker: area, centroid, equivalent diameter, Appion-style roundness,
+  and binary covariance inertia ratio. Added Python/native/browser parity tools.
+- Added a reproducible native-Rust-response blob diagnostic on all eight real calibration
+  images. Recorded connected-mask areas, equivalent diameters, roundness, binary inertia
+  ratios, and existing peak memberships without treating them as biological ground truth.
+- Drafted an experiment-first automatic-counting plan with independent regional and
+  clump-refinement arms, per-image batch results, advanced manual controls, and a complete
+  manager/subagent execution path that does not require human labels or approval gates.
 
 ### Behavior or Interface Changes
 
@@ -18,6 +24,8 @@
 
 ### Fixes and Maintenance
 
+- Protected diagnostic CSV filenames from spreadsheet formula interpretation and added
+  explicit geometry, shape-direction, and translation self-checks.
 - Replaced the repetitive three-view screenshot with a labeled four-stage H501 guide,
   including the final picked centers. Removed repeated controls and explained that
   thresholded white regions are candidate pixels rather than cell counts.
@@ -28,6 +36,14 @@
 
 ### Developer Tests and Notes
 
+- Matched Python, native Rust, and the production Chromium worker on 5,939 blobs from
+  all eight real-image masks. Passed 12 Rust tests, Clippy, code checks, six design tests,
+  482 focused repository checks, and all 21 browser workflows with one worker.
+  The initial seven-worker run had startup stalls; the serial rerun passed unchanged.
+  Blob measurements add 2,147 gzip bytes to Wasm and 160 to worker JS; counts are unchanged.
+- Checked the automatic plan's 27 milestone IDs, one-owner mapping, observable checks,
+  and acyclic dependencies. New labels are not required to finish the engineering plan;
+  independent biological validation remains a stated limitation.
 - Recaptured all five managed assets and checked the four-stage guide's actual pixel
   planes and final green overlays. Real-image counting, batch CSV, and live A501
   analysis passed; code checks, six design tests, and 312 focused repository checks

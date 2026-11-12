@@ -22,6 +22,25 @@ authoritative code or contract document, rather than a person.
 **Owner.** <the authoritative code or contract doc>
 ```
 
+### Rust blob measurements
+
+**Decision.** Measure eight-connected threshold-mask components in portable Rust and expose
+the same routine through the Wasm worker. Area/perimeter roundness and binary covariance
+inertia ratio remain distinct, intensity-independent shape measurements.
+
+**Why.** The static Pages app cannot run the Python research implementation. The real-image
+experiment shows shape differences between existing one-pick and multi-pick blobs, warranting
+a reusable measurement routine before testing whether those cues improve detection.
+
+**Consequence.** Zero mask bytes are background and all nonzero bytes are foreground. Compact
+eight-value records use original-pixel coordinates; degenerate inertia reports NaN. Perimeter
+follows the documented Appion raster convention, including values above one for small shapes.
+Calls retain no component cache. The current DoG detector still chooses centers independently;
+area or shape is not a new acceptance rule. Python remains the parity oracle and experiment tool.
+
+**Owner.** `rust/src/blob_features.rs`, `src/worker.ts`, and
+[BLOB_MEASUREMENTS.md](BLOB_MEASUREMENTS.md)
+
 ### Frontend module ownership
 
 **Decision.** Keep `src/main.ts` focused on startup and event wiring. The workflow

@@ -23,6 +23,8 @@ origin belongs there too. Rules: [REPO_STYLE.md](REPO_STYLE.md).
 - Take thresholded blob area into account. Examine my Appion `peakarea`, `peakmoment`,
   and roundness work in `OTHER_REPOS/leginon/pyami/imagefun.py`; moment of inertia
   and roundness might help characterize cells and clumps.
+- Translate the Python blob measurements to Rust/Wasm for the GitHub Pages tool;
+  Python can remain the experiment and reference implementation.
 - Treat my related DoG Picker paper as relevant method evidence. My human calibration counts
   are A101 332, A501 362, C601 270, E401 450, F201 1050, and H501 2997.
 - I want to compare settings on one image before applying the selected setting to a batch.
