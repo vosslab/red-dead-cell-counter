@@ -22,6 +22,28 @@ authoritative code or contract document, rather than a person.
 **Owner.** <the authoritative code or contract doc>
 ```
 
+### Retain detector after adaptive experiment
+
+**Decision.** Retain the current detector and its 10 px, k=4, cutoff 0.10 defaults after the
+144-case adaptive blob experiment. Preserve the research harness and negative result rather
+than porting a rejected adaptive policy to Rust/Wasm or adding its mask/CSV interface.
+
+**Why.** Local area refinement improves default count agreement but fails nearby-cutoff
+sensitivity. Small-parent processing moves A501 outside its default uncertainty band.
+Compactness and inertia fail their incremental comparisons. Independent selection and visual
+reviews accept the negative result, including visible loss of lobes during consolidation.
+
+**Consequence.** Reusable blob geometry remains available without becoming a shipping cell
+acceptance rule. The experiment's interval loss evaluates agreement with uncertain ImageJ
+totals; it does not establish biological truth or a new production result contract. A future
+adaptive method must preserve the lineage between its actual mask, emitted centers, settings,
+and exported provenance; this caution is not an implemented adaptive recipe. The broader
+automatic-counting plan remains open.
+
+**Owner.** [ADAPTIVE_BLOB_EXPERIMENT.md](ADAPTIVE_BLOB_EXPERIMENT.md),
+[adaptive_blob_processing_plan.md](active_plans/active/adaptive_blob_processing_plan.md),
+and `rust/src/lib.rs`
+
 ### Rust blob measurements
 
 **Decision.** Measure eight-connected threshold-mask components in portable Rust and expose

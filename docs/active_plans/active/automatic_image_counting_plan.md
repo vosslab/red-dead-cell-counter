@@ -1,10 +1,17 @@
 # Plan: Automatic image-specific cell counting
 
+The authorized adaptive blob-processing experiment is tracked in
+[adaptive_blob_processing_plan.md](adaptive_blob_processing_plan.md), with execution status in
+[adaptive_blob_processing_progress.md](adaptive_blob_processing_progress.md). Its experimental
+decision and final integration review are complete with no qualifying adaptive policy. The
+report is [ADAPTIVE_BLOB_EXPERIMENT.md](../../ADAPTIVE_BLOB_EXPERIMENT.md). This broader
+project plan remains open; the negative experiment does not deliver its automatic workflow.
+
 ## Context
 
 Red Dead Cell Counter currently applies one manual DoG setting to every batch image. Its 15-100 run comparison exposes sensitivity, but the representative median run is not an accuracy criterion and must not select routine student counts.
 
-The requested workflow is choose image(s), select **Analyze**, receive independently derived counts, inspect when wanted, and export CSV. Detection decisions must never depend on filename, `REFERENCE_COUNTS.csv`, or an expected count; filenames remain normal UI and CSV metadata. The eight human totals are calibration evidence, not held-out validation.
+The requested workflow is choose image(s), select **Analyze**, receive independently derived counts, inspect when wanted, and export CSV. Detection decisions must never depend on filename, `REFERENCE_COUNTS.csv`, or an expected count; filenames remain normal UI and CSV metadata. The eight human ImageJ totals have stated +/-10% uncertainty; they are calibration evidence, not held-out validation.
 
 The fixed 10 px, k=4, 0.10000 detector has 12.5% calibration MAPE. Positive-DoG-pixel Otsu reached 8.1%, but undercounted H501 by 541 and A501 by 71. Neither result alone justifies an automatic replacement.
 

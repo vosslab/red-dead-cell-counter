@@ -80,7 +80,7 @@ Only seven multi-center blobs were at least as round as the single-center median
 bridged or elongated clusters without establishing that an unusual blob contains a
 particular number of cells.
 These marginal distributions do not establish an improvement beyond area alone;
-the planned conditional ablation must test that separately.
+the conditional ablation tests that separately in the completed follow-up below.
 
 The earlier documented difficult regions all formed one threshold-0.1 blob while
 containing the existing peak picks below. The H501 screenshot field is a broader
@@ -106,3 +106,13 @@ shape feature or tune a rule to the eight supplied totals.
 The [automatic counting plan](active_plans/active/automatic_image_counting_plan.md)
 separates image-specific selection, regional threshold maps, and clump refinement.
 Roundness and inertia are research cues here; the deployed detector does not yet use them.
+
+## Completed adaptive follow-up
+
+[ADAPTIVE_BLOB_EXPERIMENT.md](ADAPTIVE_BLOB_EXPERIMENT.md) completes the 144-case area,
+small-parent, compactness, and inertia ablation at three base cutoffs on these eight JPEGs.
+No adaptive policy passes the frozen retention rule. Local area refinement improves default
+count agreement but fails nearby-cutoff sensitivity; shape cues add no qualifying benefit.
+The detector retains its current defaults, and roundness/inertia remain research measurements
+without shipping cell-acceptance filters. The ImageJ totals have stated +/-10% uncertainty
+and do not establish local biological truth. The broader automatic-counting plan remains open.

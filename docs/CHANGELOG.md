@@ -4,6 +4,15 @@
 
 ### Additions and New Features
 
+- Added a reproducible six-policy adaptive-blob research harness and
+  [ADAPTIVE_BLOB_EXPERIMENT.md](ADAPTIVE_BLOB_EXPERIMENT.md). Saved 144 real-image cases,
+  106,944 parent decisions, and 46 comparison crops; preserved one visible consolidation
+  failure as a durable WebP example. Human ImageJ totals enter only after detection.
+
+- Completed the authorized adaptive blob-processing experiment under its frozen 18-milestone plan.
+  The measured decision is negative: milestones M14-M17 are not applicable, and no adaptive policy
+  passed the independent gates. The completed report records the evidence and limitations.
+
 - Ported eight-connected binary blob measurements to Rust/WASM and exposed them through
   the production worker: area, centroid, equivalent diameter, Appion-style roundness,
   and binary covariance inertia ratio. Added Python/native/browser parity tools.
@@ -24,6 +33,10 @@
 
 ### Fixes and Maintenance
 
+- Corrected the experimental runner's float32-inclusive cutoff comparison at 0.08/0.12.
+  The complete corrected rerun changes zero experiment outputs. Restored executable modes
+  on the existing Python and browser blob verifiers after full-suite failures exposed them.
+
 - Protected diagnostic CSV filenames from spreadsheet formula interpretation and added
   explicit geometry, shape-direction, and translation self-checks.
 - Replaced the repetitive three-view screenshot with a labeled four-stage H501 guide,
@@ -35,6 +48,20 @@
   Preserved existing detector settings, prepared-image reuse, and user workflows.
 
 ### Developer Tests and Notes
+
+- The final adaptive experiment runs in 38.55 seconds with about 1.24 GB Python high-water
+  RSS and 364.53 MB child high-water RSS, measured separately. All eight default P center
+  arrays match native Rust exactly; independent case/CSV and rename/order audits pass.
+- The final integration review accepts M18 with no blockers after auditing all 144 cases,
+  106,944 parent rows, 46 gallery assets, nine source and eight input hashes, the exact curated
+  H501 image, and independent gate computations rejecting every policy. The reviewer did not
+  rerun the benchmark, browser workflows, Pages build, or native checks.
+- After closeout, the retained pytest suite passes 1,115 checks; pyflakes passes 50 and
+  executable/shebang checks pass 171. TypeScript type/lint/format, six DOE checks, 12 Rust
+  tests, the Pages build, and five focused Chromium checks pass. Kept two meaningful
+  regressions and removed 16 passing temporary implementation proofs. ImageJ references
+  remain uncertain and are not independent biological validation; the broader automatic-
+  counting plan remains open.
 
 - Matched Python, native Rust, and the production Chromium worker on 5,939 blobs from
   all eight real-image masks. Passed 12 Rust tests, Clippy, code checks, six design tests,
@@ -57,6 +84,15 @@
 - Passed the Pages build, type/lint/format checks, six design tests, all 19 Chromium
   workflows, and 314 focused repository checks. The source-line warning is resolved;
   independent review found no behavior blockers. No new dependencies were added.
+
+### Decisions and Failures
+
+- Reject every tested adaptive policy under the frozen retention rule. L reduces default
+  mean outside loss from 4.19% to 1.92%, but worsens 0.12 sensitivity; LS loses an in-band
+  A501 result, and neither shape cue earns its mechanism. These are uncertain calibration
+  totals, without annotated local biological truth. Retain the existing 0.10 default;
+  adaptive port, recipe, Wasm transport, and interface milestones are N/A. The broader
+  automatic-counting plan remains open.
 
 ## 2026-11-11
 

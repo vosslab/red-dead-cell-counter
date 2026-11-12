@@ -58,3 +58,15 @@ origin belongs there too. Rules: [REPO_STYLE.md](REPO_STYLE.md).
   the useful changes without waiting for my approval.
 
 - Include mean, median, and standard deviation of comparison Counts in the long summary as possible count estimates.
+- For preproduction experiments, do not carry legacy compatibility burdens into a conditional
+  implementation. Use uncertain ImageJ counts within 10 percent, test higher thresholds for
+  unusually large blobs, and let agent-owned milestones finish without human gates.
+- Finish the obvious authorized work and record measured results before making broader claims.
+
+- Test uncertain methods with small comparisons and measurements before fixing the design; distinguish
+  hypotheses from evidence.
+- Keep solutions to the smallest coherent design that meets demonstrated needs; add mechanisms,
+  abstractions, policies, state, or tests only when evidence shows they are needed ([REPO_STYLE.md](REPO_STYLE.md)).
+- Turn required gaps into implementation tasks in the current plan, then finish that work.
+- Dream big, then make the ambition practical with missing artifacts, clear success criteria, and
+  owned tasks that can be dispatched and completed ([REPO_STYLE.md](REPO_STYLE.md)).

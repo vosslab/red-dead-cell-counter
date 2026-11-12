@@ -1,5 +1,73 @@
 # Verification
 
+## Adaptive blob experiment
+
+On 2026-11-12, complete the six-policy research experiment described in
+[ADAPTIVE_BLOB_EXPERIMENT.md](ADAPTIVE_BLOB_EXPERIMENT.md). Its 144 cases cover eight real
+JPEGs at base cutoffs 0.08, 0.10, and 0.12, with 48 default and 96 nearby results. Every
+adaptive candidate fails the frozen retention rule. Independent specification, quality,
+compactness, inertia, selection, and visual assessments accept the negative result.
+The detector keeps diameter 10 px, k=4, cutoff 0.10; no adaptive policy or interface ships.
+The existing geometry port below is a distinct earlier deliverable.
+
+The final benchmark command is:
+
+```sh
+source source_me.sh && python3 devel/benchmark_adaptive_blobs.py
+```
+
+It exits 0, with all eight P/default center arrays exactly equal to native Rust. The final
+manifest's nine source and eight input SHA-256 hashes match current files. The source freeze
+follows the float32 comparison correction; the corrected rerun changes zero saved outputs.
+An independent audit checks all 144 saved cases and 106,944 parent CSV rows, accounting for
+emitted centers. A renamed real A101 input reproduces native and all-policy output; real-crop
+copies with reversed center/policy order reproduce masks, decisions, and centers. The ignored
+`generated/adaptive_blob_experiment/verification.json` stores that separate audit receipt.
+
+The final run takes 38.55 seconds; Python high-water RSS is about 1.24 GB and child high-water
+RSS is 364.53 MB (decimal units, measured separately). Per-policy timings share caches and
+depend on order, so they are not a speed comparison. The report defines generated artifacts,
+regeneration, frozen rules, all count/loss tables, rejection reasons, and the preserved crop.
+
+Final automated checks pass:
+
+| Command or lane | Result |
+| --- | --- |
+| `source source_me.sh && python3 -m pytest tests/ -q` | 1,115 passed in 1.93 seconds after closeout. |
+| `source source_me.sh && python3 -m pytest tests/test_pyflakes_code_lint.py -q` | 50 passed. |
+| Executable/shebang lane | 171 passed after restoring two existing verifiers' executable modes. |
+| `./check_codebase.sh` | TypeScript type/lint/format plus six DOE checks pass. |
+| `cargo test --manifest-path rust/Cargo.toml` | 12 Rust tests pass. |
+| `WASM_PACK_CACHE=/Users/vosslab/.cache/wasm-pack ./build_github_pages.sh` | Pages-ready build passes. |
+
+The focused Chromium command passes five workflows in 9.2 seconds:
+
+```sh
+source source_me.sh && PLAYWRIGHT_BROWSERS_PATH=/Users/vosslab/.cache/ms-playwright PW_PORT=4189 npx playwright test --workers=1 --grep 'all supplied images|researcher can count|prepared worker image|production worker measures|viewer tabs retain'
+```
+
+This exercises all eight real images in the browser worker, real CSV, prepared-image reuse,
+blob measurements, and actual Raw/DoG/Threshold views. It does not rerun the historical full
+21-workflow suite. The first full pytest run records 1,126 passes and two executable-mode
+failures; restoring the verifier modes and removing temporary checks yields the final 1,115.
+Two permanent checks protect the observed float32 boundary regression and inclusive
+uncertainty-band/loss semantics. Sixteen temporary implementation proofs pass before removal.
+After the report and records are written, Markdown links, ASCII/ISO-8859-1 compliance, and
+source-file length checks pass 340 checks; `git diff --check` is clean. The preserved H501
+WebP is byte-identical to its generated source crop.
+
+The image assessor inspects eight real WebPs from 46 generated crop panels. The durable
+H501 example loses visible lobes' markers and mask coverage during four-to-one consolidation;
+the known hard H501/A501/F201 clumps remain unresolved. Uncertain ImageJ totals and qualitative
+inspection establish neither localization accuracy nor mask quality. No adaptive Rust/Wasm
+port or biological validation is claimed. M14-M17 are N/A. The fresh
+`adaptive_integration_review` accepts M18 with no blockers after auditing all 144 cases, 106,944
+parent rows, 46 gallery assets, nine source and eight input hashes, the exact curated H501 image,
+and independent gate computations rejecting every policy. It did not rerun the benchmark,
+browser workflows, Pages build, or native checks; their scoped receipts above remain the evidence.
+ImageJ references remain uncertain and are not independent biological validation. See
+[adaptive_blob_processing_progress.md](active_plans/active/adaptive_blob_processing_progress.md).
+
 ## Rust/Wasm blob measurements
 
 On 2026-11-12, ported binary-mask blob geometry to portable Rust and the production
