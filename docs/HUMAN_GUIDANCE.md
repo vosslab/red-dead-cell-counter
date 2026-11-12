@@ -14,6 +14,8 @@ origin belongs there too. Rules: [REPO_STYLE.md](REPO_STYLE.md).
   cohesive modules before the entry point approaches the source-file line limit.
 - Make the README and screenshots inviting to new biology students so they want to
   try the software.
+- Make the README more visual with smaller, focused screenshots that explain the process;
+  put the full guided process in a separate walkthrough. I will handle testing for this refresh.
 - Make the differences between processing-view screenshots clear; three similar-looking
   images do not explain what the figure is supposed to show.
 - Support single-image testing and batch processing of an entire 96-well plate image set

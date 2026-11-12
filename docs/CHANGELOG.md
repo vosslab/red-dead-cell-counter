@@ -4,6 +4,9 @@
 
 ### Additions and New Features
 
+- Added [WALKTHROUGH.md](WALKTHROUGH.md), a guided Choose images, Count cells,
+  inspect, and CSV workflow with processing-view explanations, a touching-cells
+  exercise, partial-result handling, and optional selected-image Advanced analysis.
 - Implemented image-by-image automatic counting with a binary Otsu cutoff fitted to
   each image's positive DoG response in shared native Rust/Wasm. Saved results include
   the actual cutoff, method/version, automatic/manual mode, and review reasons;
@@ -34,6 +37,10 @@
 
 ### Behavior or Interface Changes
 
+- Reworked the README into a shorter visual front door with three focused workflow
+  screenshots, native captions, and links to the detailed walkthrough. Preserved the
+  Western identity, provisional status, credits, and local build commands; moved
+  supporting developer commands into [USAGE.md](USAGE.md).
 - Align the four Advanced tuning inputs in equal columns on wide screens, with two-column
   and single-column layouts on smaller screens. Shared label, input, and helper rows keep
   the entry boxes aligned when text wraps.

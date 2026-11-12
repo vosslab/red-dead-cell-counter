@@ -3,6 +3,8 @@
 Count PI-positive red fluorescent objects in JPEG or PNG microscopy images. Images
 are decoded and processed on your device; the static site does not upload them.
 
+For an illustrated first session, follow [WALKTHROUGH.md](WALKTHROUGH.md).
+
 ## First count
 
 1. Open [Red Dead Cell Counter](https://vosslab.github.io/red-dead-cell-counter/).
@@ -73,4 +75,45 @@ your browser, including one-file and partial results. Each row records:
 Counts and overlays stay in memory for the current page. CSV contains totals and
 provenance, not the full center-coordinate arrays or an analysis-session reload file.
 For method limitations see [AUTOMATIC_DETECTOR_EXPERIMENT.md](AUTOMATIC_DETECTOR_EXPERIMENT.md);
-for local build commands see [README.md](../README.md).
+for local build commands see [Build and check locally](#build-and-check-locally).
+
+## Build and check locally
+
+For a guided browser session, use [WALKTHROUGH.md](WALKTHROUGH.md). Local development
+requires Node.js 26 with npm, current stable Rust with Cargo/rustup, and wasm-pack;
+`run_web_server.sh` also uses Python 3 to serve the built site.
+
+```sh
+npm ci
+rustup target add wasm32-unknown-unknown
+cargo install wasm-pack --locked
+./run_web_server.sh
+```
+
+Open the printed local URL and select **Try an example**. The server builds and serves
+`dist/`, the GitHub Pages artifact. For a build alone, run `./build_github_pages.sh`.
+If a managed machine blocks the default wasm-pack cache, use
+`WASM_PACK_CACHE=/private/tmp/wasm-pack-cache ./build_github_pages.sh`.
+
+The usual engineering checks are:
+
+```sh
+./check_codebase.sh
+cargo test --manifest-path rust/Cargo.toml
+./run_playwright_tests.sh
+```
+
+For optional Python characterization, install NumPy, SciPy, and Pillow, then run:
+
+```sh
+source source_me.sh && python3 tools/characterize_images.py
+```
+
+These checks do not establish biological accuracy. [VERIFICATION.md](VERIFICATION.md)
+records what has actually been checked. See [CODE_ARCHITECTURE.md](CODE_ARCHITECTURE.md)
+and [FILE_STRUCTURE.md](FILE_STRUCTURE.md) for the shared native/Wasm detector path.
+
+The TypeScript 7 compiler uses the TypeScript 6 compatibility API for ESLint.
+Lockfiles record installed npm and Cargo releases. The root
+[deploy-pages.yml](../deploy-pages.yml) remains the editable seed for
+[.github/workflows/deploy-pages.yml](../.github/workflows/deploy-pages.yml).

@@ -32,10 +32,10 @@ async function count(page) {
   assert.match(await page.locator("#analysis-notice").innerText(), /Provisional/);
 }
 
-async function frame(page, slug, label) {
+async function frame(page, slug, label, options = {}) {
   const png = path.join(temporary, `${slug}.png`);
   const webp = path.join(temporary, `${slug}.webp`);
-  await page.screenshot({ path: png });
+  await page.screenshot({ path: png, ...options });
   await exec("cwebp", ["-q", "90", png, "-o", webp]);
   const target = path.join(screenshots, `${slug}.webp`);
   const [{ stdout }, size] = await Promise.all([
@@ -47,19 +47,25 @@ async function frame(page, slug, label) {
   assert.ok(size.size < 1_000_000, `${slug} exceeds the 1 MB screenshot budget.`);
   await copyFile(webp, target);
   await unlink(png);
-  evidence.views[slug] = { label, pixels: { width, height }, bytes: size.size };
+  evidence.views[slug] = {
+    label,
+    pixels: { width, height },
+    bytes: size.size,
+    viewport: page.viewportSize(),
+    ...(options.clip ? { clip: options.clip } : {}),
+  };
 }
 
-async function centerOriginalPoint(page, x, y) {
+async function centerOriginalPoint(page, x, y, visibleHeight) {
   await page.locator("#canvas-wrap").evaluate(
     (wrap, point) => {
       const canvas = wrap.querySelector("canvas");
       if (!canvas) throw new Error("The inspection canvas is unavailable.");
       const scale = canvas.getBoundingClientRect().width / canvas.width;
       wrap.scrollLeft = point.x * scale - wrap.clientWidth / 2;
-      wrap.scrollTop = point.y * scale - wrap.clientHeight / 2;
+      wrap.scrollTop = point.y * scale - (point.visibleHeight ?? wrap.clientHeight) / 2;
     },
-    { x, y },
+    { x, y, visibleHeight },
   );
 }
 
@@ -191,6 +197,20 @@ async function main() {
       "Western saloon with direct Choose images and Try an example actions",
     );
 
+    await page.setViewportSize({ width: 760, height: 1000 });
+    const arrival = await page.locator(".saloon-intro").boundingBox();
+    const title = await page.locator("#saloon-title").boundingBox();
+    const privacy = await page.locator(".arrival-privacy").boundingBox();
+    assert.ok(arrival && title && privacy);
+    await frame(page, "workflow_choose", "Arrival actions: Choose images or Try an example", {
+      clip: {
+        x: arrival.x - 8,
+        y: title.y - 16,
+        width: arrival.width + 16,
+        height: privacy.y + privacy.height - title.y + 24,
+      },
+    });
+
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.getByRole("button", { name: "Try an example", exact: true }).click();
     await page.waitForFunction(
@@ -200,6 +220,26 @@ async function main() {
     );
     assert.match(await page.locator("#selected-image-name").innerText(), /A501/);
     assert.match(await page.locator("#selected-image-details").innerText(), /binary_otsu/);
+    await page.setViewportSize({ width: 850, height: 1000 });
+    await page.locator("#zoom").fill("450");
+    await centerOriginalPoint(page, 2000, 2100, 280);
+    await page.locator("#image-inspection").scrollIntoViewIfNeeded();
+    const inspection = await page.locator("#image-inspection").boundingBox();
+    assert.ok(inspection);
+    await frame(page, "workflow_inspect", "A501 automatic count and actual green detection rings", {
+      clip: {
+        x: inspection.x,
+        y: inspection.y,
+        width: inspection.width,
+        height: 600,
+      },
+    });
+    Object.assign(evidence.views.workflow_inspect, {
+      count: await page.locator("#selected-image-count").innerText(),
+      details: await page.locator("#selected-image-details").innerText(),
+      notice: await page.locator("#analysis-notice").innerText(),
+    });
+    await page.setViewportSize({ width: 1440, height: 1000 });
     await page.locator("#zoom").fill("450");
     await centerOriginalPoint(page, 2000, 2100);
     await page
@@ -243,6 +283,8 @@ async function main() {
       "Advanced A501 manual comparison with sensitivity statistics and 21 actual trial rows",
     );
     evidence.views.comparison.statistics = await page.locator("#comparison-highlights").innerText();
+    evidence.views.comparison.trialRows = await page.locator("#comparison-rows tr").count();
+    evidence.views.comparison.status = await page.locator("#comparison-status").innerText();
     await page.close();
 
     const batch = await browser.newPage({
@@ -251,6 +293,24 @@ async function main() {
     });
     await batch.goto(baseUrl, { waitUntil: "networkidle" });
     await choose(batch, [image("A501"), image("H501")]);
+    await batch.setViewportSize({ width: 760, height: 1000 });
+    await batch.locator(".controls").scrollIntoViewIfNeeded();
+    const controls = await batch.locator(".controls").boundingBox();
+    assert.ok(controls);
+    assert.equal(
+      await batch.getByRole("button", { name: "Count cells", exact: true }).isEnabled(),
+      true,
+    );
+    assert.equal(
+      await batch.getByRole("button", { name: "Download CSV", exact: true }).isEnabled(),
+      false,
+    );
+    await frame(batch, "workflow_count", "Two images selected, ready for Count cells", {
+      clip: controls,
+    });
+    evidence.views.workflow_count.files = ["A501.jpg", "H501.jpg"];
+    evidence.views.workflow_count.selection = await batch.locator("#image-selection-summary").innerText();
+    await batch.setViewportSize({ width: 1440, height: 1000 });
     await count(batch);
     await batch.locator("#rows button").filter({ hasText: "A501.jpg" }).click();
     await batch.waitForFunction(() => !document.querySelector("#analyze")?.disabled);
