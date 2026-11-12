@@ -56,3 +56,32 @@ range and provide Actual pixels and Fit image actions. The zoom readout must dis
 fit percentage from original-pixel magnification. Verification: actual-pixel view displays
 one CSS pixel per image pixel; high zoom exceeds that scale, and Fit image restores a
 bounded overview without expanding the page horizontally.
+
+## Count statistics
+
+The user also requested mean, median, and standard deviation of the Counts. The long
+summary includes all successful candidates, including zero counts, and excludes failed
+runs. Standard deviation is the population standard deviation across those candidate
+counts (divide by N), since the summary describes the complete tested grid. Partial
+cancellation labels the successful subset explicitly. These are descriptive measures of
+parameter sensitivity; they do not replace the count associated with the selected overlay.
+Verification independently calculates all three statistics from the table's Count column.
+
+## Observed results
+
+- The 11-test Chromium regression passed in 15.7 seconds. It includes recommendation/apply
+  behavior, independent mean/median/population-SD calculations from the table, partial
+  cancellation, all eight originals, and actual-pixel/deep-zoom/fit behavior.
+- The full A501 comparison completed 27 successful settings in about 18 seconds: counts
+  232 to 410, mean 334.3, median 338.0, population SD 47.4.
+- Desktop and phone renders were captured; close inspection of A501's saturated touching
+  object confirmed that 6400% fit reached approximately 11.5 displayed pixels per image
+  pixel at the desktop viewport.
+- Axe-core 4.14.0 found one scrollable-region focus issue on the completed comparison.
+  The image viewport now has keyboard focus, an accessible region name, and a visible
+  focus style. A final selected-image scan reported zero violations for the requested
+  WCAG A/AA rule tags. This is automated evidence for inspected states, not full WCAG
+  certification or a screen-reader participant study.
+- Temporary captures and scan reports are under `/private/tmp/red-cell-experiment/`,
+  including `comparison-feedback.png`, `feedback-zoom.png`, and
+  `feedback-accessibility-final.json`.

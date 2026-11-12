@@ -45,6 +45,8 @@ batch have been exercised. See [verification evidence](docs/VERIFICATION.md).
 2. Choose **Analyze selected image** for a count with the current settings.
 3. Choose **Compare settings** to test nearby values. The table shows each count and
    runtime, highlights the stability recommendation, and applies it automatically.
+   Progress feedback includes elapsed/remaining time; the final summary reports count
+   range, mean, median, and population standard deviation across successful settings.
    Choose **Apply** on another row to use that result instead.
 4. Choose **Analyze images** to apply the current settings to the entire selection, or
    **Auto-tune and analyze batch** to compare the selected image first and then batch.
@@ -69,6 +71,8 @@ cargo install wasm-pack --locked
 
 Open the local URL printed by the server, choose an image, and select **Analyze images**.
 The image panel will show detection circles and its table row will show a count.
+Use **Actual pixels** for a 1:1 view, or zoom up to 6400% of the fitted view to inspect
+individual picks. **Fit image** restores the overview; scroll within the image to pan.
 
 On a managed machine where wasm-pack cannot write its default cache:
 

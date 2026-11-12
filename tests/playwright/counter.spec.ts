@@ -130,7 +130,7 @@ test("cancellation during image preparation completes without a worker request",
   await open(page);
   await page.getByLabel("Choose images").setInputFiles(a501);
   await page.getByRole("button", { name: "Analyze images" }).click();
-  await page.getByRole("button", { name: "Cancel" }).click();
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(page.getByRole("status")).toHaveText("Batch cancelled.", { timeout: 60_000 });
 });
 
@@ -277,8 +277,8 @@ test("cancellation stops a queued batch", async ({ page }) => {
     { ...source, name: "second.jpg" },
   ]);
   await page.getByRole("button", { name: "Analyze images" }).click();
-  await expect(page.getByRole("button", { name: "Cancel" })).toBeEnabled();
-  await page.getByRole("button", { name: "Cancel" }).click();
+  await expect(page.getByRole("button", { name: "Cancel", exact: true })).toBeEnabled();
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(page.getByRole("status")).toHaveText("Batch cancelled.", { timeout: 80_000 });
 });
 
@@ -349,6 +349,22 @@ test("comparison reports progress, explains its recommendation, and confirms app
   await expect(page.locator("#comparison-recommendation")).toContainText(/threshold/i);
   await expect(page.locator("#comparison-rows")).toContainText("Recommended");
   await expect(page.locator("#comparison-rows")).toContainText("Applied");
+  const counts = (await page.locator("#comparison-rows tr td:nth-child(4)").allTextContents())
+    .map(Number)
+    .sort((a, b) => a - b);
+  const mean = counts.reduce((sum, value) => sum + value, 0) / counts.length;
+  const median =
+    ((counts[Math.floor((counts.length - 1) / 2)] ?? 0) +
+      (counts[Math.floor(counts.length / 2)] ?? 0)) /
+    2;
+  const deviation = Math.sqrt(
+    counts.reduce((sum, value) => sum + (value - mean) ** 2, 0) / counts.length,
+  );
+  await expect(page.locator("#comparison-status")).toContainText(`mean ${mean.toFixed(1)}`);
+  await expect(page.locator("#comparison-status")).toContainText(`median ${median.toFixed(1)}`);
+  await expect(page.locator("#comparison-status")).toContainText(
+    `standard deviation ${deviation.toFixed(1)}`,
+  );
   await page.screenshot({
     path: "/private/tmp/red-cell-experiment/comparison-feedback.png",
     fullPage: true,
@@ -372,7 +388,7 @@ test("cancelled comparison preserves partial progress rather than claiming compl
   await expect
     .poll(async () => Number(await page.locator("#comparison-progress").getAttribute("value")))
     .toBeGreaterThanOrEqual(2);
-  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.getByRole("button", { name: "Cancel comparison", exact: true }).click();
   await expect(page.locator("#comparison-status")).toContainText(/cancelled/i);
   const completed = Number(await page.locator("#comparison-progress").getAttribute("value"));
   expect(completed).toBeGreaterThanOrEqual(2);

@@ -286,7 +286,8 @@ button:not(:disabled):hover,
 }
 button:focus-visible,
 input:focus-visible,
-tbody tr:focus-visible {
+tbody tr:focus-visible,
+#canvas-wrap:focus-visible {
   outline: 3px solid #edc77d;
   outline-offset: 3px;
 }

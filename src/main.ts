@@ -36,6 +36,7 @@ const elements = {
   comparisonProgress: document.querySelector<HTMLProgressElement>("#comparison-progress")!,
   comparisonProgressLabel: document.querySelector<HTMLElement>("#comparison-progress-label")!,
   comparisonStatus: document.querySelector<HTMLElement>("#comparison-status")!,
+  comparisonCancel: document.querySelector<HTMLButtonElement>("#cancel-comparison")!,
   comparisonRecommendation: document.querySelector<HTMLElement>("#comparison-recommendation")!,
   comparisonApplied: document.querySelector<HTMLElement>("#comparison-applied")!,
   comparisonRows: document.querySelector<HTMLTableSectionElement>("#comparison-rows")!,
@@ -69,10 +70,43 @@ function formatDuration(milliseconds: number): string {
   if (milliseconds < 1_000) return `${Math.round(milliseconds)} ms`;
   return `${(milliseconds / 1_000).toFixed(milliseconds < 10_000 ? 1 : 0)} s`;
 }
+function countStatisticsText(counts: number[]): string {
+  const sorted = [...counts].sort(function ascending(first: number, second: number): number {
+    return first - second;
+  });
+  const mean =
+    sorted.reduce(function sum(total: number, count: number): number {
+      return total + count;
+    }, 0) / sorted.length;
+  const middle = Math.floor(sorted.length / 2);
+  const median =
+    sorted.length % 2 === 0
+      ? ((sorted[middle - 1] ?? 0) + (sorted[middle] ?? 0)) / 2
+      : (sorted[middle] ?? 0);
+  const standardDeviation = Math.sqrt(
+    sorted.reduce(function squaredDifference(total: number, count: number): number {
+      return total + (count - mean) ** 2;
+    }, 0) / sorted.length,
+  );
+  return `Across ${sorted.length} successful settings: mean ${mean.toFixed(1)}, median ${median.toFixed(1)}, standard deviation ${standardDeviation.toFixed(1)} cells.`;
+}
+function comparisonTimingText(completed: number, total: number, started: number): string {
+  if (completed === 0) return "";
+  const elapsed = performance.now() - started;
+  if (completed < 2) return ` ${formatDuration(elapsed)} elapsed.`;
+  const averageRun =
+    comparisons.reduce(function sum(totalElapsed: number, item: Comparison): number {
+      return totalElapsed + item.elapsed;
+    }, 0) / completed;
+  return ` ${formatDuration(elapsed)} elapsed, about ${formatDuration(averageRun * (total - completed))} remaining.`;
+}
 function setComparisonProgress(completed: number, total: number): void {
   elements.comparisonProgress.max = Math.max(1, total);
   elements.comparisonProgress.value = Math.min(completed, total);
-  elements.comparisonProgressLabel.textContent = `Comparison progress: ${completed} of ${total} candidates complete`;
+  elements.comparisonProgressLabel.textContent =
+    total === 0
+      ? "Comparison progress: ready"
+      : `Comparison progress: ${completed} of ${total} candidates complete`;
 }
 function setComparisonStatus(message: string): void {
   elements.comparisonStatus.textContent = message;
@@ -482,6 +516,7 @@ async function compareSettings(): Promise<boolean> {
     block: "start",
   });
   setRunning(true);
+  elements.comparisonCancel.disabled = false;
   stopped = false;
   worker = new Worker(new URL("./worker.js", import.meta.url), { type: "module" });
   const comparisonStarted = performance.now();
@@ -491,8 +526,9 @@ async function compareSettings(): Promise<boolean> {
     for (let index = 0; index < candidates.length && !stopped; index += 1) {
       const candidate = candidates[index];
       if (!candidate) continue;
+      const completedBeforeRun = comparisons.length;
       setComparisonStatus(
-        `Comparing ${index + 1} of ${candidates.length}: ${comparisonSettingsText(candidate)}.`,
+        `Comparing ${index + 1} of ${candidates.length}: ${comparisonSettingsText(candidate)}. ${completedBeforeRun} completed.${comparisonTimingText(completedBeforeRun, candidates.length, comparisonStarted)}`,
       );
       const started = performance.now();
       try {
@@ -525,19 +561,8 @@ async function compareSettings(): Promise<boolean> {
         return Boolean(comparison.centers);
       }).length;
       const failures = completed - successes;
-      const elapsed = performance.now() - comparisonStarted;
-      const estimate =
-        completed >= 2
-          ? ` About ${formatDuration(
-              (comparisons.reduce(function sum(total: number, item: Comparison): number {
-                return total + item.elapsed;
-              }, 0) /
-                completed) *
-                (candidates.length - completed),
-            )} remaining.`
-          : "";
       setComparisonStatus(
-        `Completed ${completed} of ${candidates.length}: ${successes} successful, ${failures} failed, ${formatDuration(elapsed)} elapsed.${estimate}`,
+        `Completed ${completed} of ${candidates.length}: ${successes} successful, ${failures} failed.${comparisonTimingText(completed, candidates.length, comparisonStarted)}`,
       );
     }
   } catch (error: unknown) {
@@ -546,12 +571,25 @@ async function compareSettings(): Promise<boolean> {
   worker?.terminate();
   worker = undefined;
   setRunning(false);
+  elements.comparisonCancel.disabled = true;
   if (stopped) {
     const successes = comparisons.filter(function isSuccessful(comparison: Comparison): boolean {
       return Boolean(comparison.centers);
     }).length;
     setComparisonStatus(
-      `Comparison cancelled after ${comparisons.length} of ${candidates.length} candidates: ${successes} successful and ${comparisons.length - successes} failed.`,
+      `Comparison cancelled after ${comparisons.length} of ${candidates.length} candidates: ${successes} successful and ${comparisons.length - successes} failed.${
+        successes > 0
+          ? ` Partial results: ${countStatisticsText(
+              comparisons
+                .filter(function isSuccessful(comparison: Comparison): boolean {
+                  return Boolean(comparison.centers);
+                })
+                .map(function count(comparison: Comparison): number {
+                  return (comparison.centers?.length ?? 0) / 2;
+                }),
+            )} These statistics describe sensitivity to settings.`
+          : ""
+      }`,
     );
     setStatus("Comparison cancelled.");
     return false;
@@ -609,9 +647,10 @@ async function compareSettings(): Promise<boolean> {
       });
     return `${Math.min(...nearbyCounts)}–${Math.max(...nearbyCounts)}`;
   }
-  elements.comparisonRecommendation.textContent = `Recommended: ${(recommendation.centers?.length ?? 0) / 2} cells with ${comparisonSettingsText(recommendation.settings)}. With the other two settings fixed, nearby counts range from ${axisRange("diameter")} across diameter, ${axisRange("k")} across k, and ${axisRange("threshold")} across threshold. Overall successful counts range from ${countRange}. This is a stability signal, not an accuracy measurement.`;
+  const statistics = countStatisticsText(counts);
+  elements.comparisonRecommendation.textContent = `Recommended: ${(recommendation.centers?.length ?? 0) / 2} cells with ${comparisonSettingsText(recommendation.settings)}. With the other two settings fixed, nearby counts range from ${axisRange("diameter")} across diameter, ${axisRange("k")} across k, and ${axisRange("threshold")} across threshold. This is a stability signal, not an accuracy measurement.`;
   setComparisonStatus(
-    `Comparison finished: ${successful.length} successful and ${comparisons.length - successful.length} failed in ${formatDuration(performance.now() - comparisonStarted)}. Counts ranged from ${countRange}.`,
+    `Comparison finished: ${successful.length} successful and ${comparisons.length - successful.length} failed in ${formatDuration(performance.now() - comparisonStarted)}. Counts ranged from ${countRange}. ${statistics} These statistics describe sensitivity to settings.`,
   );
   drawComparisons();
   if (recommended) await applyComparisonResult(recommended);
@@ -678,12 +717,12 @@ function updateZoom(): void {
   const percent = Number(elements.zoom.value);
   const wrap = elements.canvas.parentElement;
   if (!wrap || elements.canvas.width === 0) {
-    elements.zoomValue.textContent = `${percent}% fit`;
+    elements.zoomValue.textContent = `${showNumber(percent)}% fit`;
     return;
   }
   const fit = Math.min(1, wrap.clientWidth / elements.canvas.width);
   const scale = fit * (percent / 100);
-  elements.zoomValue.textContent = `${percent}% fit (${scale.toFixed(scale < 1 ? 2 : 1)}x pixels)`;
+  elements.zoomValue.textContent = `${showNumber(percent)}% fit (${scale.toFixed(scale < 1 ? 2 : 1)}x pixels)`;
   elements.canvas.style.width = `${elements.canvas.width * scale}px`;
   elements.canvas.style.height = `${elements.canvas.height * scale}px`;
 }
@@ -709,6 +748,9 @@ function main(): void {
       pendingReject?.(new Error("Batch cancelled."));
       pendingReject = undefined;
     }
+  });
+  elements.comparisonCancel.addEventListener("click", function cancelComparison(): void {
+    elements.cancel.click();
   });
   elements.download.addEventListener("click", download);
   elements.markers.addEventListener("change", function redraw(): void {

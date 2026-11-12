@@ -48,12 +48,12 @@
           <div class="image-tools">
             <label><input id="markers" type="checkbox" checked /> Show detections</label
             ><label
-              >Zoom <input id="zoom" type="range" min="25" max="6400" step="25" value="100" />
+              >Zoom <input id="zoom" type="range" min="25" max="6400" step="any" value="100" />
               <span id="zoom-value">100%</span></label
             ><button id="actual-pixels" type="button">Actual pixels</button
             ><button id="fit-image" type="button">Fit image</button>
           </div>
-          <div id="canvas-wrap">
+          <div id="canvas-wrap" tabindex="0" role="region" aria-label="Image inspection viewport">
             <canvas id="image" aria-label="Selected image with detected cells"></canvas>
           </div>
         </div>
@@ -87,6 +87,7 @@
           <p id="comparison-status" aria-live="polite" aria-atomic="true">
             Choose an image to prepare a comparison.
           </p>
+          <button id="cancel-comparison" type="button" disabled>Cancel comparison</button>
           <p id="comparison-recommendation"></p>
           <p id="comparison-applied"></p>
         </div>

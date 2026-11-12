@@ -78,3 +78,11 @@ the existing defaults before this measurement.
 
 The updated eight-image Chromium workflow check passed in 6.1 seconds (6.8 seconds
 including runner setup). README/link checks passed 42 tests, and test TypeScript checking passed.
+
+## Comparison feedback and pick inspection
+
+The updated 11-test Chromium regression passed in 15.7 seconds, excluding the previously
+verified 96-image stress test. Mean, median, and population standard deviation were
+independently checked against the comparison table. Deep zoom, actual-pixel view, fit,
+and partial cancellation passed. See [the HCI inspection](COMPARISON_FEEDBACK.md) for
+the task model, accessibility findings, and scope of the automated scan.

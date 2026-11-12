@@ -4,6 +4,8 @@
 
 ### Added
 
+- Added mean, median, and population standard deviation of successful comparison counts to the detailed feedback.
+
 - Added B301 and H1001 calibration references and measured unchanged-default Rust/Wasm counts against all eight images.
 
 - Inspected touching fluorescent objects with actual Rust/Wasm detections and compared size/k sensitivity on three real-image crops.

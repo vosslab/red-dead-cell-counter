@@ -25,3 +25,5 @@ origin belongs there too. Rules: [REPO_STYLE.md](REPO_STYLE.md).
 - Compare settings should give more feedback; use the human interaction expert skill to improve it.
 
 - Zoom must magnify enough to inspect individual detection picks.
+
+- Include mean, median, and standard deviation of comparison Counts in the long summary as possible count estimates.
