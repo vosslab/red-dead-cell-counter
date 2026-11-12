@@ -2,6 +2,12 @@
 
 ## 2026-11-12
 
+### Additions and New Features
+
+- Added a reproducible native-Rust-response blob-area diagnostic on all eight real
+  calibration images. Recorded connected-mask areas, equivalent diameters, and existing
+  peak memberships without treating those memberships as biological ground truth.
+
 ### Behavior or Interface Changes
 
 - Reworked the README for biology students with a browser-first H501 walkthrough,
@@ -12,12 +18,25 @@
 
 ### Fixes and Maintenance
 
+- Replaced the repetitive three-view screenshot with a labeled four-stage H501 guide,
+  including the final picked centers. Removed repeated controls and explained that
+  thresholded white regions are candidate pixels rather than cell counts.
 - Reduced `src/main.ts` from 958 lines to a 36-line startup and event-wiring module.
   Separated workflow coordination, worker requests and image decoding, image results
   and CSV export, comparison presentation, settings validation, and count statistics.
   Preserved existing detector settings, prepared-image reuse, and user workflows.
 
 ### Developer Tests and Notes
+
+- Recaptured all five managed assets and checked the four-stage guide's actual pixel
+  planes and final green overlays. Real-image counting, batch CSV, and live A501
+  analysis passed; code checks, six design tests, and 312 focused repository checks
+  passed. An independent review confirmed the guide matches detector behavior.
+- Verified the student walkthrough with real H501/A501 processing, batch CSV export,
+  distinct Raw/DoG/Threshold renders, and a working live Pages A501 count of 339.
+  All five refreshed screenshots passed visual and size checks. Independent README
+  review improved from 93/100 to 99/100, chiefly through the first-image path.
+  The Pages build, code checks, seven Rust tests, and 318 focused repository checks passed.
 
 - Passed the Pages build, type/lint/format checks, six design tests, all 19 Chromium
   workflows, and 314 focused repository checks. The source-line warning is resolved;

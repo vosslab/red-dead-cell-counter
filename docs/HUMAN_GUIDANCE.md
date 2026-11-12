@@ -14,10 +14,15 @@ origin belongs there too. Rules: [REPO_STYLE.md](REPO_STYLE.md).
   cohesive modules before the entry point approaches the source-file line limit.
 - Make the README and screenshots inviting to new biology students so they want to
   try the software.
+- Make the differences between processing-view screenshots clear; three similar-looking
+  images do not explain what the figure is supposed to show.
 - Support single-image testing and batch processing of an entire 96-well plate image set
   with CSV download. The count should be automatic.
 - Use approximate cell size with a Difference of Gaussians filter. From experience, k
   should be tested around 3 to 6 rather than assumed to be 1.1.
+- Take thresholded blob area into account. Examine my Appion `peakarea`, `peakmoment`,
+  and roundness work in `OTHER_REPOS/leginon/pyami/imagefun.py`; moment of inertia
+  and roundness might help characterize cells and clumps.
 - Treat my related DoG Picker paper as relevant method evidence. My human calibration counts
   are A101 332, A501 362, C601 270, E401 450, F201 1050, and H501 2997.
 - I want to compare settings on one image before applying the selected setting to a batch.

@@ -1,5 +1,99 @@
 # Verification
 
+## Processing-guide clarification
+
+On 2026-11-12, replaced the three similar viewer screenshots with a labeled
+1280 x 1280 processing guide. All four panels use the same 300 x 300-pixel H501
+crop at (1900, 1900), rendered by the actual app with diameter 10, k 4, and cutoff
+0.10000. Raw fluorescence, the contrast-stretched DoG response, and the binary mask
+lead to a fourth panel with the actual green detection rings. Repeated viewer controls
+were removed. The labels distinguish candidate pixels from the final picked centers.
+This guide replaces the earlier A501 triptych listed in the capture receipt below.
+
+The updated capture harness refreshed all five managed assets, retained the real H501
+3,021 and A501 339 counts, checked batch CSV, and confirmed a live Pages A501 count of
+339. Full-crop assertions verified raw color, intermediate grayscale DoG values, a
+binary threshold mask, and green rings only in the final panel. Capture waits for the
+asynchronous overlay redraw before reading pixels. The final guide is quality-90 WebP,
+71,610 bytes; its labels, joined-object example, and final centers were visually inspected.
+An independent review found the explanation consistent with the detector behavior.
+
+Type/lint/format checks, six design tests, and 312 focused repository checks passed.
+No application or detector code changed. The application build, native Rust tests,
+full browser suite, and student usability study were not repeated for this figure fix.
+
+## Biology-student README and captures
+
+On 2026-11-12, the README was refreshed with `readme-docs` and `screenshot-docs` for
+biology students: a no-install browser path, a downloadable real H501 example, plain
+parameter explanations, and an optional pick-inspection exercise. Developer commands
+remain in a disclosure. The seven primary documentation routes include the new
+[SCREENSHOTS.md](SCREENSHOTS.md) visual tour.
+
+An independent editorial review scored the page 93/100 before and 99/100 after the
+refresh, using the README skill rubric. The largest gain was meaningful first success
+(11 to 15): the student can save H501, compare 21 settings, and inspect the applied
+3,021 detections. This is an editorial assessment, not evidence from student participants.
+The opening is 235 characters, local links and examples resolve, and calibration limits
+appear before the first-use steps. License wording now identifies the MIT text while
+explicitly noting its unfilled copyright attribution, rather than inventing attribution.
+
+The capture backend is Playwright/Chromium against the local production Pages build.
+Five refreshed WebPs use quality 90, remain within the 1920-pixel edge limit, and are
+under 1 MB each. The hero is a deliberate image-panel crop with visible filename,
+count, controls, and red cells with green detection circles. The comparison capture
+includes its statistics and table headers. The three-view image uses completed render
+states and pixel checks to distinguish raw color, grayscale DoG, and binary Threshold.
+
+| Asset | Dimensions | Captured state |
+| --- | --- | --- |
+| `saloon.webp` | 1440 x 900 | Saloon before image selection |
+| `counter.webp` | 1440 x 1050 | H501, 3,021 detections, zoomed inspection |
+| `batch.webp` | 1440 x 900 | H501 3,021 and A501 339, both complete |
+| `viewer_views.webp` | 1920 x 900 | Same real A501 region, Raw/DoG/Threshold |
+| `comparison.webp` | 1440 x 850 | H501's 21-run result and count statistics |
+
+All encoded images were visually inspected. The batch CSV path was checked separately,
+including its filename and both real count rows. All five managed assets have live
+embeds; none were pruned and no historical reference images were added. Managed blocks
+in the README and visual tour retain their sentinels, relative paths, and descriptive
+alt text. Static images suit the detailed cell/parameter inspection; no animation is used.
+
+The live [Pages tool](https://vosslab.github.io/red-dead-cell-counter/) returned HTTP 200,
+opened the saloon, accepted A501, and returned 339 detections. The public H501 sample
+download also returned HTTP 200. This confirms the live first-use route, without
+asserting that it runs the same revision as the local capture build.
+
+To refresh the captures, build and serve in one terminal:
+
+```sh
+WASM_PACK_CACHE=/Users/vosslab/.cache/wasm-pack ./build_github_pages.sh
+source source_me.sh && python3 -m http.server 4188 --bind 127.0.0.1 --directory dist
+```
+
+In a second terminal:
+
+```sh
+PLAYWRIGHT_BROWSERS_PATH=/Users/vosslab/.cache/ms-playwright node tests/playwright/capture_readme.mjs http://127.0.0.1:4188/
+```
+
+The harness writes temporary PNGs and encoded intermediates under
+`/private/tmp/red_dead_cell_counter_readme/`, copies the final WebPs to `docs/screenshots/`,
+and records capture times, dimensions, bytes, real counts, and live checks in ignored
+`generated/readme_screenshot_capture.json`, the current-run timestamp authority.
+
+The Pages build, type/lint/format checks, six design tests, seven native Rust tests, and
+318 focused repository checks passed. The optional Python characterization command's
+help path and imports also worked. Dependency installation steps were inspected against
+the existing manifests and successful local build; no fresh reinstall was needed.
+The full 19-workflow suite passed immediately before this documentation-only change
+and was not repeated. No cross-browser or student usability study was performed.
+
+Non-blocking metadata follow-up: the maintainer owns completing the actual copyright
+attribution in `LICENSE.MIT`. Evidence is its existing `[year] [fullname]` line; completion
+means verified attribution replaces those fields and the README matches it. No licensing
+or ownership terms were inferred for the contributed calibration images.
+
 ## Frontend responsibility split
 
 On 2026-11-12, `main.ts` shrank from 958 lines to 36 lines of startup and event

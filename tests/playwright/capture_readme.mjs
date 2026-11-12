@@ -17,6 +17,7 @@ const images = {
   h501: path.join(root, "IMAGES", "H501.jpg"),
 };
 const evidence = { captureTime: new Date().toISOString(), baseUrl, views: {}, live: {} };
+const processingCrop = { x: 1900, y: 1900, width: 300, height: 300 };
 
 function fail(message) {
   throw new Error(message);
@@ -115,7 +116,8 @@ async function sectionFrame(page, selector, slug, label) {
   });
 }
 
-async function viewerTile(page, view, target) {
+async function viewerTile(page, view, detections = false) {
+  await page.getByLabel("Show detections").setChecked(detections);
   await page.getByRole("tab", { name: view, exact: true }).click();
   const status =
     view === "DoG"
@@ -127,43 +129,45 @@ async function viewerTile(page, view, target) {
     (expected) => document.querySelector("#image-view-status")?.textContent?.includes(expected),
     status,
   );
-  const pixel = await page.locator("#image").evaluate(
-    (canvas, { x, y, view }) => {
+  const rendered = await page.waitForFunction(
+    ({ crop, detections }) => {
+      const canvas = document.querySelector("#image");
       const context = canvas.getContext("2d");
       if (!context) throw new Error("Canvas is unavailable.");
-      const [red, green, blue] = context.getImageData(x, y, 1, 1).data;
-      if (view === "Raw") {
-        const region = context.getImageData(x - 20, y - 20, 40, 40).data;
-        const hasColor = Array.from({ length: region.length / 4 }, (_, index) => index * 4).some(
-          (index) => region[index] !== region[index + 1] || region[index + 1] !== region[index + 2],
-        );
-        return { hasColor, red, green, blue };
+      const region = context.getImageData(crop.x, crop.y, crop.width, crop.height);
+      let colored = 0;
+      let intermediate = 0;
+      let green = 0;
+      let white = 0;
+      for (let index = 0; index < region.data.length; index += 4) {
+        const [r, g, b] = region.data.slice(index, index + 3);
+        if (r !== g || g !== b) colored++;
+        if (r !== 0 && r !== 255) intermediate++;
+        if (g > r + 30 && g > b + 30) green++;
+        if (r === 255) white++;
       }
-      return { grayscale: red === green && green === blue, binary: red === 0 || red === 255, red };
+      // Raw redraws asynchronously after the overlay checkbox changes.
+      if (green > 0 !== detections) return false;
+      const output = document.createElement("canvas");
+      output.width = crop.width;
+      output.height = crop.height;
+      output.getContext("2d").putImageData(region, 0, 0);
+      return { image: output.toDataURL(), colored, intermediate, green, white };
     },
-    { x: 3688, y: 3326, view },
+    { crop: processingCrop, detections },
   );
-  if (view === "Raw") assert.equal(pixel.hasColor, true, "Raw tile lost its color image.");
+  const tile = await rendered.jsonValue();
+  if (view === "Raw") assert.ok(tile.colored > 0, "Raw crop lost its color image.");
   else {
-    assert.equal(pixel.grayscale, true, `${view} center pixel is not grayscale.`);
-    if (view === "Threshold")
-      assert.equal(pixel.binary, true, "Threshold center pixel is not binary.");
+    assert.equal(tile.colored, 0, `${view} crop is not grayscale.`);
+    if (view === "Threshold") {
+      assert.equal(tile.intermediate, 0, "Threshold crop is not binary.");
+      assert.ok(tile.white > 0 && tile.white < processingCrop.width * processingCrop.height);
+    } else assert.ok(tile.intermediate > 0, "DoG crop has no grayscale response.");
   }
-  const panel = page.locator(".image-panel");
-  await panel.evaluate((element) => window.scrollTo({ top: element.offsetTop - 12 }));
-  const box = await panel.boundingBox();
-  if (!box) fail(`${view} image panel has no bounding box.`);
-  const viewport = page.viewportSize();
-  if (!viewport) fail("Tile viewport is unavailable.");
-  await page.screenshot({
-    path: target,
-    clip: {
-      x: 0,
-      y: Math.max(0, Math.floor(box.y - 12)),
-      width: viewport.width,
-      height: Math.min(900, viewport.height - Math.max(0, Math.floor(box.y - 12))),
-    },
-  });
+  if (detections) assert.ok(tile.green > 0, "Counted-center crop has no detection rings.");
+  else assert.equal(tile.green, 0, "An intermediate crop includes detection rings.");
+  return tile.image;
 }
 
 async function verifyLive(browser) {
@@ -278,25 +282,58 @@ async function main() {
       deviceScaleFactor: 1,
     });
     await enter(viewer);
-    await choose(viewer, images.a501);
+    await choose(viewer, images.h501);
     await viewer.getByRole("button", { name: "Analyze selected image", exact: true }).click();
     await expectText(viewer.locator("#status"), "Selected image analysis complete.", 120_000);
-    await viewer.getByLabel("Show detections").uncheck();
-    await viewer.locator("#zoom").fill("1000");
-    await centerOriginalPoint(viewer, 3688, 3326);
-    const tilePaths = ["Raw", "DoG", "Threshold"].map((view) =>
-      path.join(temporary, `viewer_${view.toLowerCase()}.png`),
-    );
-    for (const [index, view] of ["Raw", "DoG", "Threshold"].entries())
-      await viewerTile(viewer, view, tilePaths[index]);
-    const combined = path.join(temporary, "viewer_views.png");
-    await exec("magick", [...tilePaths, "+append", combined]);
+    const tiles = [
+      ["1. Raw fluorescence", "Original red signal, including faint spots.", "Raw", false],
+      ["2. DoG response", "Cell-scale contrast: brighter means a stronger response.", "DoG", false],
+      [
+        "3. Threshold mask",
+        "White = response >= 0.10000. These are candidate pixels.",
+        "Threshold",
+        false,
+      ],
+      [
+        "4. Counted centers",
+        "Green rings = peaks passing the cutoff and spacing rule.",
+        "Raw",
+        true,
+      ],
+    ];
+    const panels = [];
+    for (const [title, caption, view, detections] of tiles) {
+      const image = await viewerTile(viewer, view, detections);
+      panels.push(
+        `<section><h2>${title}</h2><p>${caption}</p><img src="${image}" alt="${title}"></section>`,
+      );
+    }
+    const guide = await browser.newPage({ viewport: { width: 1280, height: 1280 } });
+    await guide.setContent(`<style>
+      * { box-sizing: border-box; } body { margin: 0; padding: 24px; background: #211007;
+        color: #f3ddb0; font: 18px Arial, sans-serif; } h1 { margin: 0 0 10px; font-size: 34px; }
+      header p { margin: 0 0 22px; } main { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+      section { padding: 16px; border: 2px solid #84502c; background: #150c07; }
+      h2 { margin: 0 0 8px; font-size: 27px; } section p { margin: 0 0 14px; font-size: 17px; }
+      img { display: block; width: 100%; height: 410px; object-fit: contain; background: #000;
+        image-rendering: pixelated; } footer { margin-top: 18px; font-size: 18px; }
+    </style><header><h1>From red fluorescence to counted centers</h1>
+      <p>Same H501 field in every panel: 300 x 300 pixels. Diameter 10 px, k 4, cutoff 0.10000.</p>
+    </header><main>${panels.join("")}</main><footer>
+      White regions are not the count. Compare the joined objects with the green picked centers.<br>
+      Labeled crops from actual app outputs; the headings explain each processing step.
+    </footer>`);
+    await guide
+      .locator("img")
+      .evaluateAll((images) => Promise.all(images.map((image) => image.decode())));
     await pageFrame(
-      { screenshot: async ({ path: target }) => copyFile(combined, target) },
+      guide,
       "viewer_views",
-      "A501 touching region across Raw, DoG, and Threshold views",
+      "Same H501 field: raw fluorescence, DoG response, threshold mask, and counted centers",
     );
-    evidence.views.viewer_views.point = { x: 3688, y: 3326, markers: false, zoom: "1000%" };
+    evidence.views.viewer_views.crop = processingCrop;
+    evidence.views.viewer_views.panels = tiles.map(([title]) => title);
+    await guide.close();
     await viewer.close();
 
     await verifyLive(browser);

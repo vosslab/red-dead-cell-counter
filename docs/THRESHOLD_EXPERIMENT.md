@@ -101,3 +101,20 @@ The paper states that DoG maps are normalized before minimum thresholding and th
 overlapping candidates from different sizes are reduced to the strongest response.
 It does not state the normalization formula, so this experiment does not claim an
 exact replication of that part of the paper.
+
+## Area and normalization follow-up
+
+The [BLOB_AREA_EXPERIMENT.md](BLOB_AREA_EXPERIMENT.md) follow-up measures threshold-mask
+area and existing center picks on all eight images. Larger blobs often contain multiple
+picks, but their area distributions overlap. Blob area can guide a clump investigation;
+it cannot establish a biological cell count by itself.
+
+Current upstream Appion source makes an additional normalization experiment reproducible:
+[apDog.py](https://github.com/leginon-org/leginon/blob/myami-python3/appion/appionlib/apDog.py)
+uses `normStdev(D) / 4`. Its
+[imagenorm.py](https://github.com/leginon-org/leginon/blob/myami-python3/appion/appionlib/apImage/imagenorm.py)
+defines `normStdev(D)` as `(D - mean(D)) / std(D)`, or mean subtraction for a constant map.
+Thus the nonconstant-map response is `(D - mean(D)) / (4 * std(D))`.
+This identifies the current implementation, not the exact historical implementation
+used in the paper. It is a candidate to test against raw DoG, not an adopted default;
+the earlier global mean-plus-SD results already caution against assuming it will improve PI counts.
