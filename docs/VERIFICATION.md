@@ -1,6 +1,122 @@
 # Verification
 
-## Automatic image counting
+## Saved object morphology
+
+On 2026-11-12, the final saved analysis gains descriptive geometry for connected
+objects in the DoG threshold mask. The Rust engine returns 14-value records and exact
+accepted-center membership; the existing eight-value API and detection math remain
+unchanged. The typed Wasm bridge copies results and frees owned allocations. Centers,
+settings, and geometry are saved together after the final detection. The interface shows
+finite-sample summaries, raw challenge crops, an all-object CSV, and eleven additions
+after the original 24 count CSV columns.
+
+Static/build receipts pass: `cargo check --all-targets`, all-target Clippy with
+`-D warnings`, the `wasm32-unknown-unknown` check, and a release `wasm-pack` regeneration
+using the writable `WASM_PACK_CACHE`. The canonical production command
+`WASM_PACK_CACHE=/Users/vosslab/.cache/wasm-pack ./build_github_pages.sh` passes.
+Both TypeScript configuration checks and focused ESLint/Prettier checks across eleven
+files pass; the new MJS test and capture harness pass `node --check`.
+Source HTML and morphology CSS match the production copies, and `git diff --check`
+passes. The final main JS, worker JS, and Wasm are 47,251, 9,937, and 66,327 raw bytes.
+Fresh independent `morphology_spec_review` and `morphology_quality_review` accept
+the source and new visual assets with no blockers.
+
+Actual production-browser documentation captures finish at 2026-11-12T21:30:42.355Z.
+A501 default refinement still gives 272 accepted centers at diameter 10, k=2.65,
+threshold 0.26860; H501 default refinement still gives 2,197. The separate H501
+manual example uses diameter 10, k=4, threshold 0.10000. These are example outputs,
+not an accuracy comparison:
+
+| Saved example | Accepted centers | Objects | One center | Multiple centers | No peak | At edge | Summary objects |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| A501 refined | 272 | 221 | 187 | 34 | 0 | 6 | 182 |
+| H501 manual | 3,021 | 2,642 | 2,359 | 282 | 1 | 41 | 2,324 |
+
+The A501 summary has mean/median/population SD area 75.78/63.00/48.10 px2,
+mean equivalent diameter 9.27 px, mean roundness 0.94, mean inertia ratio 1.52
+(179 finite values), and mean squared radius 12.53 px2. The H501 challenge crop
+contains seven accepted centers in one 2,042 px2 object, with roundness 0.23,
+inertia ratio 2.51, and mean squared radius 609.31 px2. Object CSV rows match
+component totals and conserve accepted-center membership; the count CSV has 35
+columns. Editing controls preserves the saved measurement provenance. Inspect changes
+zoom from 450 to 6,400 for A501 and 300 to 4,046.67 for H501 without changing counts.
+
+Ten current quality-90 WebPs have longest edge at most 1,920 px and are below 1 MB;
+the historical adaptive-blob asset remains preserved (eleven assets total).
+New `object_measurements.webp` and `challenge_clusters.webp` are inspected at README
+widths 360 and 520 px; walkthrough images use 720 px. The app shows three challenge
+examples, and the small documentation crop shows two complete cards. The comparison
+capture uses a 1,440 x 1,600 viewport. The table and gallery have no page overflow at
+320, 768, 1,440, and 1,920 px. Receipts are ignored
+`generated/readme_screenshot_capture.json` and `output_morphology_visual/capture_receipt.json`.
+The local port-4194 server is stopped.
+Closeout checks pass for these three evidence documents: ASCII source, 31 local link
+targets, and clean `git diff --check`.
+
+New Rust, Node, and browser checks are written but not executed: the user owns
+application testing. No application test suite, deployed-site check, or independent
+biological validation runs for this refresh. Browser capture evidence does not establish
+native/Wasm parity for the new detailed schema. Historical parity below covers the old
+eight-value primitive. Areas measure connected threshold objects, including clusters;
+they are not validated per-cell areas. Summary eligibility means one accepted center
+away from the image edge, an implementation approximation rather than a biological rule.
+
+[morphology_insights.md](active_plans/reports/morphology_insights.md) records ownership
+and completion. Earlier refinement and historical evidence below retains its original scope.
+
+## Required refinement workflow
+
+On 2026-11-12, the main workflow changes to actual per-image multi-parameter refinement
+for graduate biology researchers. The shared TypeScript operation seeds from Rust binary
+Otsu, evaluates 15-100 design settings (default 21), then reruns the representative median
+setting. A no-signal seed returns zero without trials. Worker/Rust protocol and detector
+math remain unchanged, but controller behavior, result provenance, CSV summaries, and
+presentation change.
+
+The canonical production build passes with
+`WASM_PACK_CACHE=/Users/vosslab/.cache/wasm-pack ./build_github_pages.sh`. Both TypeScript
+configuration checks, focused ESLint/Prettier, and `node --check` for the new test pass.
+Fresh independent specification (`refinement_spec_rereview`) and quality
+(`refinement_quality_review`) source reviews accept with no blockers. Tests are updated
+and the engine test is written, but not executed. The user owns application testing:
+no Node test runner, pytest, Cargo test, Playwright test runner, or application regression
+suite runs for this refresh. Historical suite results below retain their original scope.
+
+Actual-browser documentation captures at 2026-11-12T21:05:56Z exercise real A501/H501
+refinement, saved settings, processing views, overlays, and CSV. Both images complete
+21 trials with zero failures; exported values are:
+
+| Image | Count | Diameter | k | Threshold | Mean | Median | Population SD | Range |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| A501 | 272 | 10 | 2.65 | 0.26860 | 252.33 | 272 | 150.18 | 0-560 |
+| H501 | 2,197 | 10 | 2.65 | 0.26307 | 2,158.95 | 2,197 | 1,302.60 | 0-4,746 |
+
+CSV records method `dog_ccd_median`, version `dog-refinement-1`, mode `automatic`, and
+review reasons `provisional_refinement; refinement_sensitive`. These counts agree less
+well with uncertain human references 362/2,997 than the earlier seed counts 291/2,456.
+This is not an accuracy improvement or independent biological validation. The workflow
+uses the existing median-selection engine; it is not a newly validated scientific optimizer.
+The eight-image Otsu experiment calibrates the seed only. Count spread and the 10%
+review marker describe sensitivity, not accuracy.
+
+Eight quality-90 WebPs are refreshed (longest edge at most 1,920 px; 24,614-151,460 bytes)
+and inspected at intended document sizes. All nine screenshot assets remain referenced,
+including the preserved historical adaptive-blob example. Visible controls and the primary
+action fit at 320, 768, 1,440, and 1,920 px without page overflow. At the captured
+1,440 px frame, feedback height falls from about 460 to 312 px and canvas start from
+y=1,274 to y=1,035. Receipts: ignored `generated/readme_screenshot_capture.json` and
+`output_refinement_visual/capture_receipt.json`. The local port-4194 server is stopped.
+No axe scan (dependency absent), participant study, WCAG certification, or live publication
+verification is performed.
+Final documentation checks pass for 14 changed Markdown files: ASCII source, 160 local
+link targets, the 196-character README first paragraph, and clean `git diff --check`.
+
+[refinement_workflow.md](active_plans/reports/refinement_workflow.md) owns the atomic task
+and evidence ledger. All sections below are historical receipts for earlier revisions.
+Their 1,155 pytest checks, 17 Rust tests, browser parity, and stress results do not validate
+the changed combined workflow. Existing receipts are preserved with their original scope.
+
+## Historical automatic image counting
 
 The eight-image comparison selected one global binary Otsu method for automatic
 counting. The method is provisional because its per-image quality classifications

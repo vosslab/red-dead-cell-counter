@@ -233,7 +233,7 @@ tbody tr:focus-visible,
 }
 .controls {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.7fr);
+  grid-template-columns: minmax(12rem, 1fr) minmax(0, 3fr);
   gap: 0.85rem;
   margin: 1rem 0;
   padding: 0.85rem;
@@ -350,8 +350,19 @@ input[type="number"] {
   color: #633715;
 }
 .comparison {
-  margin-top: 1.25rem;
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 0 1rem;
+  margin: 1rem 0;
   overflow-x: auto;
+}
+.comparison > h2,
+.comparison > details {
+  grid-column: 1 / -1;
+}
+.comparison > h2 {
+  margin-bottom: 0.5rem;
+  font-size: 1.1rem;
 }
 .comparison h2 {
   color: var(--paper-light);
@@ -360,7 +371,7 @@ input[type="number"] {
   color: #e5c98f;
 }
 .comparison-details {
-  margin: 0.5rem 0 1rem;
+  margin: 0.25rem 0 0.5rem;
   color: #e5c98f;
 }
 .comparison-details summary {
@@ -380,10 +391,13 @@ input[type="number"] {
   display: grid;
   gap: 0.35rem;
   max-width: 62rem;
-  margin: 1rem 0;
-  padding: 0.8rem;
+  margin: 0.5rem 0;
+  padding: 0.65rem;
   border-left: 4px solid var(--red);
   background: #160b06;
+}
+.comparison-feedback > button {
+  justify-self: start;
 }
 .comparison-actions {
   display: flex;
@@ -399,6 +413,9 @@ input[type="number"] {
 #comparison-recommendation:not(:empty) {
   margin: 0;
   color: #ead7aa;
+}
+.comparison-feedback p:empty {
+  display: none;
 }
 #comparison-progress {
   width: min(100%, 34rem);
@@ -540,10 +557,11 @@ canvas {
 }
 .comparison-highlights {
   display: grid;
-  grid-template-columns: repeat(3, minmax(8rem, 1fr));
+  align-self: start;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.65rem;
   max-width: 42rem;
-  margin: 1rem 0;
+  margin: 0.5rem 0;
 }
 .comparison-highlights p {
   display: grid;
@@ -716,14 +734,6 @@ td {
   font-size: 0.85rem;
   line-height: 1.45;
 }
-.counting {
-  display: grid;
-  align-content: start;
-  gap: 0.35rem;
-}
-.counting .control-actions {
-  margin-top: 0.75rem;
-}
 #analyze {
   min-width: 10rem;
   min-height: 3.25rem;
@@ -743,27 +753,31 @@ td {
   font-size: 0.9rem;
   line-height: 1.5;
 }
-.advanced-settings {
-  min-width: 0;
-  margin-top: 1.25rem;
-  padding: 0.75rem;
-  border: 1px solid #a57138;
-  background: #211109;
-}
-.advanced-settings > summary {
-  min-height: 2.75rem;
-  padding: 0.7rem 0.5rem;
-  color: var(--gold);
-  font-weight: 800;
-  cursor: pointer;
-}
-.advanced-settings[open] > summary {
-  margin-bottom: 0.75rem;
-}
 .tuning .batch-note {
   max-width: 60rem;
   margin-bottom: 1rem;
   line-height: 1.5;
+}
+.tuning .action-help {
+  margin: 0.65rem 0 0;
+}
+.export-actions {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 2px solid var(--ink);
+}
+.export-actions .control-step,
+.export-actions .batch-note {
+  color: var(--ink);
+}
+.export-actions button {
+  margin-top: 0.75rem;
+}
+.trial-details {
+  overflow-x: auto;
+}
+.trial-details table {
+  margin-top: 0.75rem;
 }
 .setting-fields label {
   min-width: 0;
@@ -795,6 +809,7 @@ td {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .controls,
+  .comparison,
   .workspace {
     grid-template-columns: minmax(0, 1fr);
   }

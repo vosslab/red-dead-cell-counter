@@ -32,7 +32,14 @@ same pixels and settings would not provide independent count information.
 
 ## Ranges and bounds
 
-Default requested starting point: diameter 10, k 4, threshold 0.10.
+Required automatic refinement uses this design independently on each image. Binary Otsu
+first fits a seed threshold at the visible initial diameter/k; the automatic starting
+threshold therefore varies by image. The manual threshold entry does not override it.
+A no-signal seed returns zero without trials. The seed-plus-design pipeline is provisional;
+the eight-image Otsu experiment does not establish its accuracy.
+
+Illustrative manual starting point: diameter 10, k 4, threshold 0.10. The table below
+shows that example, not a fixed automatic threshold.
 
 | Parameter | Axial low | Factorial low | Center | Factorial high | Axial high |
 | --- | ---: | ---: | ---: | ---: | ---: |
@@ -80,6 +87,9 @@ as evidence of stability.
 - Browser checks exercise the DoE table, count statistics, applied settings, batch CSV,
   cancellation, and user validation.
 
-Implementations: `src/experiment_design.ts` and `src/choose_representative.ts`.
+Implementations: `src/experiment_design.ts`, `src/choose_representative.ts`, and
+`src/refine_image.ts`. Existing test coverage above describes the design and earlier
+comparison behavior; current workflow verification is tracked in
+[VERIFICATION.md](VERIFICATION.md#required-refinement-workflow).
 
 Real-image coverage and low-threshold measurements are recorded in [DoE results](DOE_RESULTS.md).

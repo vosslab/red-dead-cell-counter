@@ -1,6 +1,7 @@
 /// <reference lib="webworker" />
 import init, { PreparedImage, measure_blobs, preview } from "../rust/pkg/cell_detector.js";
 import type { WorkerReply, WorkerRequest } from "./analysis_types.js";
+import { unpackMorphology } from "./morphology_types.js";
 
 const ready = init({ module_or_path: new URL("./wasm/cell_detector_bg.wasm", import.meta.url) });
 let prepared: { image: PreparedImage; width: number; height: number } | undefined;
@@ -39,6 +40,7 @@ self.onmessage = async (event: MessageEvent<WorkerRequest>): Promise<void> => {
       request.kind !== "automatic" &&
       request.kind !== "detect" &&
       request.kind !== "preview" &&
+      request.kind !== "measure" &&
       request.kind !== "blobs"
     )
       throw new Error("Unknown worker request kind.");
@@ -116,12 +118,31 @@ self.onmessage = async (event: MessageEvent<WorkerRequest>): Promise<void> => {
       self.postMessage(reply, { transfer: [packed.buffer] });
       return;
     }
-    if (request.rgba !== undefined) {
+    if (request.kind === "detect" && request.rgba !== undefined) {
       validatePixels(request.rgba, pixels, 4);
       prepare(request.rgba, request.width, request.height);
     }
     if (!prepared || prepared.width !== request.width || prepared.height !== request.height)
       throw new Error("No prepared image matches these dimensions; provide image pixels first.");
+    if (request.kind === "measure") {
+      if (!(request.centers instanceof Float32Array))
+        throw new Error("Measurement centers must be a Float32Array.");
+      const result = prepared.image.measure_objects(
+        request.diameter,
+        request.k,
+        request.threshold,
+        request.centers,
+      );
+      try {
+        const morphology = unpackMorphology(result.features(), result.center_components());
+        const reply: WorkerReply = { id: request.id, kind: "measure", ok: true, morphology };
+        self.postMessage(reply);
+      } finally {
+        // ASVS 1.4.3: release owned native results even when unpacking or posting fails.
+        result.free();
+      }
+      return;
+    }
     const centers = prepared.image.detect(request.diameter, request.k, request.threshold);
     const reply: WorkerReply = { id: request.id, kind: "detect", ok: true, centers };
     self.postMessage(reply, { transfer: [centers.buffer] });

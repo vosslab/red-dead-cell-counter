@@ -79,3 +79,11 @@ origin belongs there too. Rules: [REPO_STYLE.md](REPO_STYLE.md).
   that adjusts only the threshold when that works.
 - Keep the cell diameter, DoG k, response threshold, and comparison runs entry boxes in one
   aligned row on wide screens, with clean wrapping on smaller screens.
+
+- The audience is graduate biology researchers with laboratory experience; keep refinement
+  in the main workflow and its controls visible, rather than hidden at the bottom in Advanced.
+- The default GO action must actually refine multiple parameters for each image, including
+  every image in a batch; refinement is required, not an optional comparison step.
+
+- Show scientists descriptive data such as roundness, moment-related measurements, and
+  average dead-cell area, plus sample challenging clusters and how the software handles them.

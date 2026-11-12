@@ -4,9 +4,19 @@
 //! perimeter deliberately follows Appion's raster convention rather than a
 //! contour approximation.
 
+use std::collections::HashMap;
+
 use crate::MAX_PIXELS;
 
 const STRIDE: usize = 8;
+const OBJECT_STRIDE: usize = 14;
+
+/// Binary component geometry and exact component membership for accepted centers.
+#[derive(Debug)]
+pub struct ObjectMeasurements {
+    pub features: Vec<f64>,
+    pub center_components: Vec<u32>,
+}
 
 #[derive(Debug)]
 struct BlobStats {
@@ -19,6 +29,11 @@ struct BlobStats {
     m2_xy: f64,
     m2_yy: f64,
     perimeter: f64,
+    x_min: u32,
+    y_min: u32,
+    x_max_exclusive: u32,
+    y_max_exclusive: u32,
+    touches_edge: bool,
 }
 
 impl BlobStats {
@@ -33,6 +48,11 @@ impl BlobStats {
             m2_xy: 0.0,
             m2_yy: 0.0,
             perimeter: 0.0,
+            x_min: first_x,
+            y_min: first_y,
+            x_max_exclusive: first_x + 1,
+            y_max_exclusive: first_y + 1,
+            touches_edge: false,
         }
     }
 
@@ -49,6 +69,11 @@ impl BlobStats {
         self.m2_xy += delta_x * (point_y - self.mean_y);
         self.m2_yy += delta_y * (point_y - self.mean_y);
         self.area = next_area;
+        self.x_min = self.x_min.min(x);
+        self.y_min = self.y_min.min(y);
+        self.x_max_exclusive = self.x_max_exclusive.max(x + 1);
+        self.y_max_exclusive = self.y_max_exclusive.max(y + 1);
+        self.touches_edge |= x == 0 || y == 0 || x + 1 == width || y + 1 == height;
 
         let orthogonal_foreground = orthogonal_foreground_count(mask, width, height, x, y);
         let exposed_sides = 4 - orthogonal_foreground;
@@ -59,7 +84,7 @@ impl BlobStats {
         };
     }
 
-    fn append_to(self, result: &mut Vec<f64>) {
+    fn append_to(self, result: &mut Vec<f64>, detailed: bool) {
         let area = f64::from(self.area);
         let equivalent_diameter = 2.0 * (area / std::f64::consts::PI).sqrt();
         let roundness = 4.0 * std::f64::consts::PI * area / self.perimeter.powi(2);
@@ -88,6 +113,16 @@ impl BlobStats {
             roundness,
             inertia_ratio,
         ]);
+        if detailed {
+            result.extend_from_slice(&[
+                covariance_xx + covariance_yy,
+                f64::from(self.x_min),
+                f64::from(self.y_min),
+                f64::from(self.x_max_exclusive),
+                f64::from(self.y_max_exclusive),
+                f64::from(self.touches_edge),
+            ]);
+        }
     }
 }
 
@@ -122,6 +157,7 @@ fn visit_component(
     start: usize,
     visited: &mut [bool],
     pending: &mut Vec<usize>,
+    mut on_pixel: impl FnMut(usize),
 ) -> BlobStats {
     let first_x = (start % width as usize) as u32;
     let first_y = (start / width as usize) as u32;
@@ -129,6 +165,7 @@ fn visit_component(
     pending.push(start);
     visited[start] = true;
     while let Some(index) = pending.pop() {
+        on_pixel(index);
         let x = (index % width as usize) as u32;
         let y = (index / width as usize) as u32;
         stats.add_pixel(x, y, mask, width, height);
@@ -160,11 +197,88 @@ pub fn measure_blobs_core(mask: &[u8], width: u32, height: u32) -> Result<Vec<f6
     let mut pending = Vec::new();
     for index in 0..pixels {
         if mask[index] != 0 && !visited[index] {
-            visit_component(mask, width, height, index, &mut visited, &mut pending)
-                .append_to(&mut result);
+            visit_component(
+                mask,
+                width,
+                height,
+                index,
+                &mut visited,
+                &mut pending,
+                |_| {},
+            )
+            .append_to(&mut result, false);
         }
     }
     debug_assert_eq!(result.len() % STRIDE, 0);
+    Ok(result)
+}
+
+/// Measure all 8-connected components, associating each accepted center by its foreground pixel.
+///
+/// Each 14-value record starts with the eight values of [`measure_blobs_core`], followed by
+/// `[mean_squared_radius_px2, x_min, y_min, x_max_exclusive, y_max_exclusive, touches_edge]`.
+/// The squared radius is the binary covariance trace, independent of intensity. Components
+/// retain row-major order; `center_components` maps each supplied center to a zero-based index.
+/// Centers must be unique, finite, integral x/y pairs on foreground pixels.
+pub fn measure_objects_core(
+    mask: &[u8],
+    width: u32,
+    height: u32,
+    centers: &[f32],
+) -> Result<ObjectMeasurements, String> {
+    let pixels = validate_mask(mask, width, height)?;
+    if !centers.len().is_multiple_of(2) {
+        return Err("centers must contain x/y pairs".into());
+    }
+    let mut center_pixels = HashMap::with_capacity(centers.len() / 2);
+    for (center_index, pair) in centers.as_chunks::<2>().0.iter().enumerate() {
+        let (x, y) = (pair[0], pair[1]);
+        if !x.is_finite()
+            || !y.is_finite()
+            || x.fract() != 0.0
+            || y.fract() != 0.0
+            || x < 0.0
+            || y < 0.0
+            || f64::from(x) >= f64::from(width)
+            || f64::from(y) >= f64::from(height)
+        {
+            return Err("centers must be finite integral pixels within image bounds".into());
+        }
+        let pixel = y as usize * width as usize + x as usize;
+        if mask[pixel] == 0 {
+            return Err("each center must belong to a foreground component".into());
+        }
+        if center_pixels.insert(pixel, center_index).is_some() {
+            return Err("centers must not contain duplicate pixels".into());
+        }
+    }
+    let mut result = ObjectMeasurements {
+        features: Vec::new(),
+        center_components: vec![0; centers.len() / 2],
+    };
+    let mut visited = vec![false; pixels];
+    let mut pending = Vec::new();
+    for index in 0..pixels {
+        if mask[index] != 0 && !visited[index] {
+            let component = (result.features.len() / OBJECT_STRIDE) as u32;
+            visit_component(
+                mask,
+                width,
+                height,
+                index,
+                &mut visited,
+                &mut pending,
+                |pixel| {
+                    if let Some(center) = center_pixels.remove(&pixel) {
+                        result.center_components[center] = component;
+                    }
+                },
+            )
+            .append_to(&mut result.features, true);
+        }
+    }
+    debug_assert!(center_pixels.is_empty());
+    debug_assert_eq!(result.features.len() % OBJECT_STRIDE, 0);
     Ok(result)
 }
 
@@ -222,5 +336,69 @@ mod tests {
             "mask length does not match mask dimensions"
         );
         assert!(validate_mask(&[], 40_000_001, 1).is_err());
+    }
+
+    #[test]
+    fn detailed_geometry_preserves_touching_lobes_and_exact_center_membership() {
+        let (width, height) = (10, 8);
+        let mut mask = vec![0; (width * height) as usize];
+        for (x, y) in [
+            (2, 2),
+            (3, 2),
+            (2, 3),
+            (3, 3),
+            (4, 2),
+            (5, 2),
+            (6, 2),
+            (5, 3),
+            (6, 3),
+            (0, 6),
+            (0, 7),
+            (9, 7),
+        ] {
+            mask[(y * width + x) as usize] = 1;
+        }
+        let detailed = measure_objects_core(
+            &mask,
+            width,
+            height,
+            &[9.0, 7.0, 2.0, 2.0, 6.0, 3.0, 0.0, 6.0],
+        )
+        .unwrap();
+        assert_eq!(detailed.center_components, [2, 0, 0, 1]);
+        assert_eq!(detailed.features.len(), OBJECT_STRIDE * 3);
+        let records: Vec<_> = detailed
+            .features
+            .as_chunks::<OBJECT_STRIDE>()
+            .0
+            .iter()
+            .collect();
+        assert_eq!(records[0][2], 9.0);
+        assert!((records[0][8] - 200.0 / 81.0).abs() < 1e-12);
+        assert_eq!(&records[0][9..], &[2.0, 2.0, 7.0, 4.0, 0.0]);
+        assert_eq!(records[1][2], 2.0);
+        assert_eq!(&records[1][8..], &[0.25, 0.0, 6.0, 1.0, 8.0, 1.0]);
+        assert_eq!(records[2][2], 1.0);
+        assert!(records[2][7].is_nan());
+        assert_eq!(&records[2][8..], &[0.0, 9.0, 7.0, 10.0, 8.0, 1.0]);
+        let legacy = measure_blobs_core(&mask, width, height).unwrap();
+        for (old, new) in legacy.as_chunks::<STRIDE>().0.iter().zip(records) {
+            for (left, right) in old.iter().zip(new) {
+                assert!(left == right || (left.is_nan() && right.is_nan()));
+            }
+        }
+        for invalid in [
+            &[2.0][..],
+            &[f32::NAN, 2.0],
+            &[2.5, 2.0],
+            &[-1.0, 2.0],
+            &[10.0, 2.0],
+            &[0.0, 0.0],
+            &[2.0, 2.0, 2.0, 2.0],
+        ] {
+            assert!(measure_objects_core(&mask, width, height, invalid).is_err());
+        }
+        let empty = measure_objects_core(&[0; 4], 2, 2, &[]).unwrap();
+        assert!(empty.features.is_empty() && empty.center_components.is_empty());
     }
 }

@@ -1,7 +1,6 @@
 import { elements } from "./counter_elements.js";
 import {
   countStatistics,
-  countStatisticsText,
   formatCount,
   formatStatistic,
   type CountStatistics,
@@ -9,14 +8,9 @@ import {
 import { comparisonSettingsText } from "./detector_settings.js";
 import type { DesignPoint, DetectorSettings } from "./experiment_design.js";
 import type { ImageResult } from "./image_workspace.js";
+import type { Refinement, RefinementRun } from "./analysis_types.js";
 
-export type Comparison = {
-  settings: DetectorSettings;
-  kind: DesignPoint["kind"];
-  centers?: Float32Array;
-  elapsed: number;
-  error?: string;
-};
+export type Comparison = RefinementRun;
 
 export type ComparisonState = {
   runs: Comparison[];
@@ -52,7 +46,7 @@ function headerCell(text: string): HTMLTableCellElement {
 
 function successfulRuns(state: ComparisonState): Comparison[] {
   return state.runs.filter(function isSuccessful(comparison: Comparison): boolean {
-    return Boolean(comparison.centers);
+    return comparison.count !== undefined;
   });
 }
 
@@ -70,6 +64,7 @@ export function createComparisonPanel(
   cancelled: (total: number) => CountStatistics | undefined;
   finish: (elapsed: number) => CountStatistics | undefined;
   applied: (result: ImageResult) => void;
+  restore: (refinement: Refinement, file: File) => void;
 } {
   function statistics(counts: number[]): CountStatistics | undefined {
     const result = countStatistics(counts);
@@ -98,7 +93,7 @@ export function createComparisonPanel(
     for (const comparison of state.runs) {
       const row = document.createElement("tr");
       if (comparison === state.recommended) row.className = "recommended";
-      const count = comparison.centers ? formatCount(comparison.centers.length / 2) : "";
+      const count = comparison.count !== undefined ? formatCount(comparison.count) : "";
       const elapsed = `${comparison.elapsed.toFixed(0)} ms`;
       row.append(
         cell(comparison.settings.diameter.toFixed(2)),
@@ -111,7 +106,7 @@ export function createComparisonPanel(
       const action = document.createElement("td");
       action.className = "comparison-decision";
       const labels: string[] = [];
-      if (comparison === state.recommended) labels.push("Recommended");
+      if (comparison === state.recommended) labels.push("Representative");
       if (comparison === state.applied) labels.push("Applied");
       if (labels.length > 0) {
         const label = document.createElement("span");
@@ -124,7 +119,7 @@ export function createComparisonPanel(
         label.textContent = "Failed";
         action.append(label);
       }
-      if (comparison.centers) {
+      if (comparison.count !== undefined && state.applied) {
         const apply = document.createElement("button");
         apply.type = "button";
         apply.textContent = "Apply";
@@ -148,8 +143,8 @@ export function createComparisonPanel(
     elements.comparisonProgress.value = Math.min(completed, total);
     elements.comparisonProgressLabel.textContent =
       total === 0
-        ? "Comparison progress: ready"
-        : `Comparison progress: ${formatCount(completed)} of ${formatCount(total)} candidates complete`;
+        ? "Refinement progress: ready"
+        : `Refinement progress: ${formatCount(completed)} of ${formatCount(total)} settings complete`;
   }
 
   function status(message: string): void {
@@ -169,8 +164,12 @@ export function createComparisonPanel(
 
   function clear(message: string): void {
     elements.comparison.classList.remove("has-comparison");
+    state.runs = [];
+    state.recommended = undefined;
+    state.applied = undefined;
+    state.file = undefined;
     elements.comparisonSummary.textContent =
-      "Select an image, then compare a compact central-composite design of cell-size, k, and threshold settings.";
+      "Select an image, then refine and count across cell-size, k, and threshold settings.";
     elements.comparisonRecommendation.textContent = "";
     elements.comparisonApplied.textContent = "";
     elements.comparisonStatistics.replaceChildren();
@@ -179,10 +178,16 @@ export function createComparisonPanel(
     elements.inspectApplied.disabled = true;
     progress(0, 0);
     status(message);
+    end();
+    render();
   }
 
-  function range(candidates: DesignPoint[], axis: keyof DetectorSettings, suffix = ""): string {
-    const values = candidates.map(function value(candidate: DesignPoint): number {
+  function range(
+    candidates: Readonly<DetectorSettings>[],
+    axis: keyof DetectorSettings,
+    suffix = "",
+  ): string {
+    const values = candidates.map(function value(candidate: Readonly<DetectorSettings>): number {
       return candidate[axis];
     });
     const digits = axis === "threshold" ? 5 : 2;
@@ -194,36 +199,47 @@ export function createComparisonPanel(
     elements.comparisonStatistics.replaceChildren();
     elements.comparisonStatistics.hidden = true;
     elements.comparisonHighlights.hidden = true;
-    elements.comparisonSummary.textContent = `Testing ${formatCount(candidates.length)} settings for ${file.name}: the 15-point central-composite design (1 center, 8 factorial, 6 axial) plus ${formatCount(candidates.length - 15)} supplemental settings. Processed starting point: ${comparisonSettingsText(input)}. Actual design center: ${comparisonSettingsText(candidates[0]!)}. Rounded settings span diameter ${range(candidates, "diameter", " px")}, k ${range(candidates, "k")}, and threshold ${range(candidates, "threshold")}.`;
+    elements.comparisonSummary.textContent = designSummary(
+      candidates,
+      input,
+      file,
+      candidates.length,
+    );
     elements.comparisonRecommendation.textContent = "";
     elements.comparisonApplied.textContent = "";
     progress(0, candidates.length);
     status(
-      `Preparing ${formatCount(candidates.length)} candidates for ${file.name}. Decoding the image before comparison.`,
+      `Preparing ${formatCount(candidates.length)} settings for ${file.name}. Decoding the image before refinement.`,
     );
     render();
-    elements.comparison.scrollIntoView({
-      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
-      block: "start",
-    });
     elements.comparisonCancel.disabled = false;
+    elements.comparisonCancel.hidden = false;
+  }
+
+  function designSummary(
+    candidates: Readonly<DetectorSettings>[],
+    input: Readonly<DetectorSettings>,
+    file: File,
+    requestedRuns: number,
+  ): string {
+    const span = candidates.length
+      ? ` Recorded settings span diameter ${range(candidates, "diameter", " px")}, k ${range(candidates, "k")}, and threshold ${range(candidates, "threshold")}.`
+      : "";
+    return `Refinement for ${file.name}: ${formatCount(requestedRuns)} requested settings in a 15-point central-composite design (8 factorial points at +/-1, 6 axial points at +/-8^(1/4), 1 center in logarithmic parameter coordinates) plus ${formatCount(Math.max(0, requestedRuns - 15))} supplemental settings. Starting point: ${comparisonSettingsText(input)}.${span} The median trial is the successful tested setting whose count is closest to the median. Statistics describe sensitivity to settings; the median does not establish accuracy.`;
   }
 
   function end(): void {
     elements.comparisonCancel.disabled = true;
+    elements.comparisonCancel.hidden = true;
   }
 
   function cancelled(total: number): CountStatistics | undefined {
     const counts = successfulRuns(state).map(function count(comparison: Comparison): number {
-      return (comparison.centers?.length ?? 0) / 2;
+      return comparison.count!;
     });
     const result = statistics(counts);
     status(
-      `Comparison cancelled after ${formatCount(state.runs.length)} of ${formatCount(total)} candidates: ${formatCount(counts.length)} successful and ${formatCount(state.runs.length - counts.length)} failed.${
-        result
-          ? ` Partial results (n=${formatCount(result.count)}): ${countStatisticsText(result)} These statistics describe sensitivity to settings.`
-          : ""
-      }`,
+      `Cancelled after ${formatCount(state.runs.length)} of ${formatCount(total)} trials: ${formatCount(counts.length)} successful, ${formatCount(state.runs.length - counts.length)} failed. Partial results only.`,
     );
     return result;
   }
@@ -231,15 +247,21 @@ export function createComparisonPanel(
   function finish(elapsed: number): CountStatistics | undefined {
     const runs = successfulRuns(state);
     const counts = runs.map(function count(comparison: Comparison): number {
-      return (comparison.centers?.length ?? 0) / 2;
+      return comparison.count!;
     });
     const result = statistics(counts);
     const recommendation = state.recommended;
-    if (!result || !recommendation) return result;
+    if (!result || !recommendation) {
+      status(
+        `Refinement: ${formatCount(runs.length)} successful and ${formatCount(state.runs.length - runs.length)} failed settings. No representative run is available.`,
+      );
+      render();
+      return result;
+    }
     const countRange = `${formatCount(Math.min(...counts))}-${formatCount(Math.max(...counts))}`;
-    elements.comparisonRecommendation.textContent = `Representative median run: ${formatCount((recommendation.centers?.length ?? 0) / 2)} cells with ${comparisonSettingsText(recommendation.settings)}. This is an actual tested setting whose count is closest to the median of the successful design runs. These statistics describe sensitivity to settings.`;
+    elements.comparisonRecommendation.textContent = `Median trial: ${formatCount(recommendation.count!)} cells; ${comparisonSettingsText(recommendation.settings)}.`;
     status(
-      `Comparison finished: ${formatCount(runs.length)} successful and ${formatCount(state.runs.length - runs.length)} failed in ${formatDuration(elapsed)}. Counts ranged from ${countRange}. ${countStatisticsText(result)} These statistics describe sensitivity to settings.`,
+      `${formatCount(runs.length)} successful, ${formatCount(state.runs.length - runs.length)} failed \u00b7 ${formatDuration(elapsed)} \u00b7 counts ${countRange}.`,
     );
     render();
     return result;
@@ -247,7 +269,38 @@ export function createComparisonPanel(
 
   function applied(result: ImageResult): void {
     if (!result.analysis) return;
-    elements.comparisonApplied.textContent = `Applied to ${result.file.name} only: ${comparisonSettingsText(result.analysis.settings)}. Inspect the detections. Comparison counts describe sensitivity to settings; the median does not establish accuracy.`;
+    elements.comparisonApplied.textContent = `Applied to ${result.file.name}: ${comparisonSettingsText(result.analysis.settings)}.`;
+    const refinement = result.analysis.refinement;
+    if (refinement) {
+      elements.comparisonSummary.textContent = `${designSummary(
+        refinement.runs.map((run) => run.settings),
+        refinement.startingSettings,
+        result.file,
+        refinement.requestedRuns,
+      )} Seed method: ${refinement.seedMethod}. Method: ${result.analysis.method}; version: ${result.analysis.version}.`;
+    }
+  }
+
+  function restore(refinement: Refinement, file: File): void {
+    state.runs = refinement.runs;
+    state.recommended = refinement.runs[refinement.representativeIndex];
+    state.applied = refinement.runs[refinement.selectedIndex];
+    state.file = file;
+    elements.comparison.classList.add("has-comparison");
+    elements.comparisonSummary.textContent = designSummary(
+      refinement.runs.map((run) => run.settings),
+      refinement.startingSettings,
+      file,
+      refinement.requestedRuns,
+    );
+    elements.comparisonRecommendation.textContent = "";
+    elements.comparisonApplied.textContent = state.applied
+      ? `Applied to ${file.name}: ${comparisonSettingsText(state.applied.settings)}.`
+      : "";
+    progress(refinement.runs.length, refinement.requestedRuns);
+    finish(refinement.runs.reduce((elapsed, run) => elapsed + run.elapsed, 0));
+    end();
+    render();
   }
 
   return {
@@ -261,5 +314,6 @@ export function createComparisonPanel(
     cancelled,
     finish,
     applied,
+    restore,
   };
 }

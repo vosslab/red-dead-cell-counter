@@ -18,18 +18,40 @@ const processingCrop = { x: 1600, y: 1800, width: 800, height: 600 };
 async function choose(page, files) {
   await page.getByLabel("Choose microscopy images", { exact: true }).setInputFiles(files);
   await page.locator("#image-inspection").waitFor({ state: "visible" });
-  await page.getByRole("button", { name: "Count cells", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Refine and count", exact: true }).waitFor();
 }
 
 async function count(page) {
-  await page.getByRole("button", { name: "Count cells", exact: true }).click();
+  await page.getByRole("button", { name: "Refine and count", exact: true }).click();
   await page.waitForFunction(
-    () => document.querySelector("#status")?.textContent?.includes("Automatic counting finished"),
+    () => document.querySelector("#status")?.textContent?.includes("Automatic refinement finished"),
     undefined,
     { timeout: 230_000 },
   );
-  assert.match(await page.locator("#selected-image-details").innerText(), /binary_otsu/);
-  assert.match(await page.locator("#analysis-notice").innerText(), /Provisional/);
+  assert.match(await page.locator("#selected-image-details").innerText(), /Refined count/);
+  assert.match(await page.locator("#analysis-notice").innerText(), /experimental|provisional/i);
+}
+
+async function responsiveControls(page) {
+  evidence.responsive = [];
+  for (const width of [320, 768, 1440, 1920]) {
+    await page.setViewportSize({ width, height: 1200 });
+    const receipt = await page.evaluate(() => ({
+      width: innerWidth,
+      documentWidth: document.documentElement.scrollWidth,
+      controls: ["diameter", "k", "threshold", "comparison-runs", "analyze"].map((id) => {
+        const rect = document.getElementById(id).getBoundingClientRect();
+        return { id, x: rect.x, right: rect.right, width: rect.width };
+      }),
+    }));
+    assert.ok(receipt.documentWidth <= width, `Page overflows at ${width}px.`);
+    assert.ok(
+      receipt.controls.every(
+        (control) => control.x >= 0 && control.right <= width && control.width > 0,
+      ),
+    );
+    evidence.responsive.push(receipt);
+  }
 }
 
 async function frame(page, slug, label, options = {}) {
@@ -122,8 +144,9 @@ async function viewerTile(page, view, detections) {
 
 async function processingGuide(browser, page) {
   const details = await page.locator("#selected-image-details").innerText();
-  const cutoff = details.match(/threshold (\d+\.\d+)/)?.[1];
-  assert.ok(cutoff, "The actual automatic cutoff must be visible.");
+  const settings = details.match(/diameter (\d+\.\d+) px, k (\d+\.\d+), threshold (\d+\.\d+)/);
+  assert.ok(settings, "The actual applied settings must be visible.");
+  const [, diameter, k, cutoff] = settings;
   const tiles = [
     ["1. Raw fluorescence", "Original red signal: compare bright and faint spots.", "Raw", false],
     ["2. DoG response", "Cell-sized contrast; display brightness is stretched.", "DoG", false],
@@ -160,7 +183,7 @@ async function processingGuide(browser, page) {
       image-rendering: pixelated; } footer { margin-top: 12px; font-size: 18px; }
   </style><header><h1>From red fluorescence to counted centers</h1>
     <p>The same A501 field in every panel: ${processingCrop.width} x ${processingCrop.height} original pixels.
-    Automatic binary Otsu cutoff ${cutoff}; diameter 10 px, k 4.</p></header>
+    Applied refinement trial: diameter ${diameter} px, k ${k}, threshold ${cutoff}.</p></header>
     <main>${panels.join("")}</main><footer>Labeled crops from actual app outputs.
     White regions can contain several centers; inspect the raw image before using the count.</footer>`);
   await guide
@@ -171,8 +194,74 @@ async function processingGuide(browser, page) {
     "viewer_views",
     "Same A501 field: raw fluorescence, DoG response, threshold mask, and counted centers",
   );
-  Object.assign(evidence.views.viewer_views, { crop: processingCrop, cutoff, pixelChecks });
+  Object.assign(evidence.views.viewer_views, {
+    crop: processingCrop,
+    diameter,
+    k,
+    cutoff,
+    pixelChecks,
+  });
   await guide.close();
+}
+
+
+async function captureMorphology(page, label, panel) {
+  await page.waitForFunction(() => document.querySelectorAll("#challenge-cards article").length === 3 && document.querySelector("#challenge-status")?.textContent?.includes("Raw image crops"));
+  const pending = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download object measurements CSV", exact: true }).click();
+  const downloaded = await pending;
+  assert.equal(downloaded.suggestedFilename(), "object-measurements.csv");
+  const csv = await readFile(await downloaded.path(), "utf8");
+  const csvLines = csv.trim().split(/\r?\n/);
+  const headers = csvLines.shift().split(",");
+  const lines = csvLines.map(line => [...line.matchAll(/"((?:[^"]|"")*)"(?:,|$)/g)].map(match => match[1].replaceAll('""', '"')));
+  // The shared exporter quotes every data field.
+  const records = lines.map(row => Object.fromEntries(headers.map((header, index) => [header, row[index]])));
+  assert.ok(records.length > 0, "Object CSV must contain real measured objects.");
+  const count = Number((await page.locator("#selected-image-count").innerText()).replaceAll(",", "").match(/\d+/)[0]);
+  assert.equal(records.reduce((sum, row) => sum + Number(row.accepted_center_count), 0), count);
+  const before = await page.locator("#morphology-panel").innerText();
+  const threshold = await page.locator("#threshold").inputValue();
+  await page.locator("#threshold").fill("0.12345");
+  assert.equal(await page.locator("#morphology-panel").innerText(), before);
+  await page.locator("#threshold").fill(threshold);
+  const cards = await page.locator("#challenge-cards article").evaluateAll(elements => elements.map(card => ({ text: card.innerText, canvas: { width: card.querySelector("canvas").width, height: card.querySelector("canvas").height }, label: card.querySelector("canvas").getAttribute("aria-label") })));
+  for (const card of cards) {
+    const area = card.text.match(/Area ([\d,.]+) px/)[1].replaceAll(",", "");
+    const centers = card.text.match(/(\d+) accepted center/)[1];
+    const object = records.find(row => Number(row.area_px2) === Number(area) && row.accepted_center_count === centers);
+    card.object = object;
+  }
+  const zoomBefore = await page.locator("#zoom").inputValue();
+  await page.getByRole("button", { name: "Inspect this region", exact: true }).first().click();
+  const zoomAfter = await page.locator("#zoom").inputValue();
+  assert.notEqual(zoomBefore, zoomAfter);
+  assert.equal(Number((await page.locator("#selected-image-count").innerText()).replaceAll(",", "").match(/\d+/)[0]), count);
+  const receipt = { label, count, details: await page.locator("#selected-image-details").innerText(), panel: before, objects: records.length, acceptedCenterSum: count, cards, inspect: {zoomBefore, zoomAfter, countUnchanged: true}, records };
+  evidence.morphology ??= [];
+  evidence.morphology.push(receipt);
+  await page.setViewportSize({ width: panel ? 600 : 760, height: 1400 });
+  const target = page.locator(panel ? "#morphology-panel" : "#challenge-regions");
+  await target.scrollIntoViewIfNeeded();
+  const box = await target.boundingBox();
+  assert.ok(box);
+  if (!panel) {
+    const firstCard = await page.locator("#challenge-cards article").first().boundingBox();
+    box.height = firstCard.y + firstCard.height - box.y;
+  }
+  await frame(page, panel ? "object_measurements" : "challenge_clusters", label, { clip: {x: Math.max(0, box.x - 3), y: Math.max(0, box.y - 8), width: box.width + 6, height: box.height + 16} });
+  if (panel) Object.assign(evidence.views.object_measurements, { count, population: await page.locator("#morphology-population").innerText() });
+}
+
+async function responsiveMorphology(page) {
+  evidence.morphologyResponsive = [];
+  for (const width of [320, 768, 1440, 1920]) {
+    await page.setViewportSize({width, height: 1200});
+    const receipt = await page.evaluate(() => ({width: innerWidth, documentWidth: document.documentElement.scrollWidth, elements: [...document.querySelectorAll("#morphology-panel, #morphology-rows th, #morphology-rows td, #download-morphology, #challenge-regions, .challenge-card, .challenge-card canvas, .challenge-card button")].map(element => { const rect = element.getBoundingClientRect(); return {tag: element.tagName, text: element.textContent, left: rect.left, right: rect.right, width: rect.width}; })}));
+    assert.ok(receipt.documentWidth <= width, `Morphology overflow at ${width}px`);
+    assert.ok(receipt.elements.every(element => element.left >= 0 && element.right <= width && element.width > 0));
+    evidence.morphologyResponsive.push(receipt);
+  }
 }
 
 async function main() {
@@ -184,11 +273,12 @@ async function main() {
   const browser = await chromium.launch({ headless: true });
   try {
     const page = await browser.newPage({
-      viewport: { width: 1440, height: 1000 },
+      viewport: { width: 1440, height: 1600 },
       deviceScaleFactor: 1,
     });
     await page.setViewportSize({ width: 1920, height: 1200 });
     await page.goto(baseUrl, { waitUntil: "networkidle" });
+    assert.ok((await page.request.get(new URL("morphology.css", baseUrl).toString())).ok());
     assert.equal(await page.title(), "Red Dead Cell Counter");
     await page.getByRole("button", { name: "Choose images", exact: true }).waitFor();
     await frame(
@@ -214,12 +304,13 @@ async function main() {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.getByRole("button", { name: "Try an example", exact: true }).click();
     await page.waitForFunction(
-      () => document.querySelector("#status")?.textContent?.includes("Automatic counting finished"),
+      () =>
+        document.querySelector("#status")?.textContent?.includes("Automatic refinement finished"),
       undefined,
       { timeout: 230_000 },
     );
     assert.match(await page.locator("#selected-image-name").innerText(), /A501/);
-    assert.match(await page.locator("#selected-image-details").innerText(), /binary_otsu/);
+    assert.match(await page.locator("#selected-image-details").innerText(), /Refined count/);
     await page.setViewportSize({ width: 850, height: 1000 });
     await page.locator("#zoom").fill("450");
     await centerOriginalPoint(page, 2000, 2100, 280);
@@ -239,11 +330,11 @@ async function main() {
       details: await page.locator("#selected-image-details").innerText(),
       notice: await page.locator("#analysis-notice").innerText(),
     });
-    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.setViewportSize({ width: 1440, height: 1600 });
     await page.locator("#zoom").fill("450");
     await centerOriginalPoint(page, 2000, 2100);
     await page
-      .locator(".image-panel")
+      .locator(".controls")
       .evaluate((element) => window.scrollTo({ top: element.offsetTop - 12 }));
     await frame(
       page,
@@ -254,13 +345,27 @@ async function main() {
       count: await page.locator("#selected-image-count").innerText(),
       details: await page.locator("#selected-image-details").innerText(),
       notice: await page.locator("#analysis-notice").innerText(),
+      layout: await page.evaluate(() =>
+        [
+          ".controls",
+          "#comparison",
+          "#comparison-highlights",
+          "#image-inspection",
+          "#canvas-wrap",
+        ].map((selector) => {
+          const rect = document.querySelector(selector).getBoundingClientRect();
+          return { selector, x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+        }),
+      ),
     });
     await processingGuide(browser, page);
+    await captureMorphology(page, "A501 refined", true);
+    await page.setViewportSize({ width: 1440, height: 1600 });
 
-    await page.locator("#advanced-settings > summary").click();
-    await page
-      .getByRole("button", { name: "Compare settings on selected image", exact: true })
-      .click();
+    // The example already performed the default 21 trials; capture that saved refinement.
+    await page.locator(".trial-details").evaluate((details) => {
+      details.open = true;
+    });
     await page.waitForFunction(
       () =>
         document.querySelector("#comparison-progress")?.getAttribute("value") === "21" &&
@@ -269,10 +374,7 @@ async function main() {
       { timeout: 230_000 },
     );
     assert.equal(await page.locator("#comparison-rows tr").count(), 21);
-    assert.match(
-      await page.locator("#comparison-status").innerText(),
-      /21 successful and 0 failed/,
-    );
+    assert.match(await page.locator("#comparison-status").innerText(), /21 successful, 0 failed/);
     assert.equal(await page.locator("#comparison-highlights").isVisible(), true);
     await page
       .locator("#comparison")
@@ -280,7 +382,7 @@ async function main() {
     await frame(
       page,
       "comparison",
-      "Advanced A501 manual comparison with sensitivity statistics and 21 actual trial rows",
+      "A501 automatic refinement with sensitivity statistics and 21 actual trial rows",
     );
     evidence.views.comparison.statistics = await page.locator("#comparison-highlights").innerText();
     evidence.views.comparison.trialRows = await page.locator("#comparison-rows tr").count();
@@ -288,29 +390,38 @@ async function main() {
     await page.close();
 
     const batch = await browser.newPage({
-      viewport: { width: 1440, height: 1000 },
+      viewport: { width: 1440, height: 1600 },
       deviceScaleFactor: 1,
     });
     await batch.goto(baseUrl, { waitUntil: "networkidle" });
     await choose(batch, [image("A501"), image("H501")]);
+    await responsiveControls(batch);
     await batch.setViewportSize({ width: 760, height: 1000 });
     await batch.locator(".controls").scrollIntoViewIfNeeded();
     const controls = await batch.locator(".controls").boundingBox();
     assert.ok(controls);
     assert.equal(
-      await batch.getByRole("button", { name: "Count cells", exact: true }).isEnabled(),
+      await batch.getByRole("button", { name: "Refine and count", exact: true }).isEnabled(),
       true,
     );
     assert.equal(
       await batch.getByRole("button", { name: "Download CSV", exact: true }).isEnabled(),
       false,
     );
-    await frame(batch, "workflow_count", "Two images selected, ready for Count cells", {
-      clip: controls,
-    });
+    await frame(
+      batch,
+      "workflow_count",
+      "Two images selected, visible starting settings, ready to Refine and count",
+      {
+        clip: controls,
+      },
+    );
+    assert.equal(await batch.locator("#comparison-runs").inputValue(), "21");
     evidence.views.workflow_count.files = ["A501.jpg", "H501.jpg"];
-    evidence.views.workflow_count.selection = await batch.locator("#image-selection-summary").innerText();
-    await batch.setViewportSize({ width: 1440, height: 1000 });
+    evidence.views.workflow_count.selection = await batch
+      .locator("#image-selection-summary")
+      .innerText();
+    await batch.setViewportSize({ width: 1440, height: 1600 });
     await count(batch);
     await batch.locator("#rows button").filter({ hasText: "A501.jpg" }).click();
     await batch.waitForFunction(() => !document.querySelector("#analyze")?.disabled);
@@ -324,9 +435,14 @@ async function main() {
     const downloaded = await download.path();
     assert.ok(downloaded);
     const csv = await readFile(downloaded, "utf8");
-    assert.match(csv, /algorithm_version,method,mode,review_reasons,no_signal/);
+    assert.match(
+      csv,
+      /algorithm_version,method,mode,review_reasons,no_signal,refinement_runs_requested,refinement_runs_successful,refinement_runs_failed,seed_method,seed_threshold,count_mean,count_median,count_sd,count_min,count_max/,
+    );
+    assert.equal(csv.split(/\r?\n/)[0].split(",").length, 35);
+    assert.equal((csv.match(/"dog-refinement-1"/g) ?? []).length, 2);
     assert.equal(
-      (csv.match(/"binary_otsu","automatic","provisional_calibration"/g) ?? []).length,
+      (csv.match(/"dog_ccd_median","automatic","provisional_refinement/g) ?? []).length,
       2,
     );
     await frame(
@@ -338,6 +454,14 @@ async function main() {
       rows: await batch.locator("#rows tr").allTextContents(),
       csv,
     });
+    await batch.locator("#rows button").filter({ hasText: "H501.jpg" }).click();
+    await batch.locator("#diameter").fill("10");
+    await batch.locator("#k").fill("4");
+    await batch.locator("#threshold").fill("0.1");
+    await batch.getByRole("button", { name: "Count once with these settings", exact: true }).click();
+    await batch.waitForFunction(() => !document.querySelector("#analyze")?.disabled && document.querySelector("#selected-image-details")?.textContent?.includes("0.10000"), undefined, { timeout: 230_000 });
+    await captureMorphology(batch, "H501 manual d10 k4 t0.10000", false);
+    await responsiveMorphology(batch);
     await batch.close();
   } finally {
     await browser.close();

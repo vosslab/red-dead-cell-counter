@@ -20,6 +20,23 @@ pub struct AutomaticResult {
     detection: AutomaticDetection,
 }
 
+/// Owned detailed component measurements; browser callers read its arrays and free it.
+#[wasm_bindgen(js_name = ObjectMeasurements)]
+pub struct ObjectMeasurementsResult {
+    measurements: crate::ObjectMeasurements,
+}
+
+#[wasm_bindgen(js_class = ObjectMeasurements)]
+impl ObjectMeasurementsResult {
+    pub fn features(&self) -> Vec<f64> {
+        self.measurements.features.clone()
+    }
+
+    pub fn center_components(&self) -> Vec<u32> {
+        self.measurements.center_components.clone()
+    }
+}
+
 #[wasm_bindgen]
 impl AutomaticResult {
     pub fn centers(&self) -> Vec<f32> {
@@ -74,6 +91,24 @@ impl PreparedImage {
         ))
     }
 
+    /// Measure the final raw-response threshold mask, restoring its scales if trials changed them.
+    pub fn object_measurements_core(
+        &mut self,
+        diameter: f32,
+        k: f32,
+        threshold: f32,
+        centers: &[f32],
+    ) -> Result<crate::ObjectMeasurements, String> {
+        validate_settings(diameter, k, threshold)?;
+        let (width, height) = self.signal.dimensions();
+        let mask: Vec<u8> = self
+            .response_core(diameter, k)?
+            .iter()
+            .map(|&response| u8::from(response >= threshold))
+            .collect();
+        crate::measure_objects_core(&mask, width, height, centers)
+    }
+
     /// Borrow the same raw response used by manual detection, caching only its latest scales.
     pub fn response_core(&mut self, diameter: f32, k: f32) -> Result<&[f32], String> {
         validate_settings(diameter, k, 0.00002)?;
@@ -111,6 +146,18 @@ impl PreparedImage {
 
     pub fn detect(&mut self, diameter: f32, k: f32, threshold: f32) -> Result<Vec<f32>, JsValue> {
         self.detect_core(diameter, k, threshold)
+            .map_err(|error| JsValue::from_str(&error))
+    }
+
+    pub fn measure_objects(
+        &mut self,
+        diameter: f32,
+        k: f32,
+        threshold: f32,
+        centers: &[f32],
+    ) -> Result<ObjectMeasurementsResult, JsValue> {
+        self.object_measurements_core(diameter, k, threshold, centers)
+            .map(|measurements| ObjectMeasurementsResult { measurements })
             .map_err(|error| JsValue::from_str(&error))
     }
 

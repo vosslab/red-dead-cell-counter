@@ -2,16 +2,17 @@
 
 ## Purpose
 
-This contract adds reusable geometry measurements for binary foreground blobs. It is a
-browser-local worker primitive, not a new cell-counting method, automatic selection rule,
-or user-interface control. The existing detector and its counts do not change.
+This contract defines browser-local geometry measurements for binary foreground objects.
+The interface reports descriptive size and shape statistics and real-image challenge crops
+for each saved count. Geometry does not accept, reject, merge, or split detections; the
+existing DoG maxima and minimum-separation rules still determine the count.
 
 The measurements make it possible to inspect thresholded objects, including touching
 objects, before deciding whether an area or shape cue earns use in a future detector.
 The related [BLOB_AREA_EXPERIMENT.md](BLOB_AREA_EXPERIMENT.md) records the real-image
 research experiment; it does not establish a biological classification rule.
 
-## Runtime contract
+## Legacy blob primitive
 
 | Layer | Contract |
 | --- | --- |
@@ -46,7 +47,7 @@ when it bundles the generated Wasm glue.
   The stack is reused across components within a call. Output requires 64 bytes per blob;
   highly fragmented masks can therefore produce large results even within the input-size cap.
 
-## Flat feature layout
+## Legacy feature layout
 
 `blobFeatures` stores one eight-value `f64` record per component. For component `i`, its
 record begins at `8 * i`.
@@ -65,6 +66,78 @@ record begins at `8 * i`.
 `first_x` and `first_y` identify a component reproducibly; they are not a detected cell
 center. The centroid uses equal weights for all foreground pixels, not fluorescence intensity.
 Equivalent diameter is `2 * sqrt(A / pi)`.
+
+## Saved-object measurement contract
+
+The production path measures the final saved settings once, after final detection and
+before saving centers, settings, and morphology together. Refinement trials do not retain
+geometry. Count once and applying a trial use the same final measurement step. A failed
+or cancelled measurement leaves the previous complete saved analysis available.
+
+| Layer | Contract |
+| --- | --- |
+| Rust core | `measure_objects_core(mask, width, height, centers) -> Result<ObjectMeasurements, String>` |
+| Prepared image | `object_measurements_core(diameter, k, threshold, centers)` |
+| Wasm | `PreparedImage.measure_objects(...) -> ObjectMeasurementsResult` |
+| Owned result | `features()`, `center_components()`, then `free()` |
+| Worker | `kind: "measure"` via `DetectorClient.processMeasurements` |
+| Saved record | `SavedAnalysis.morphology.objects` with typed geometry and center indices |
+
+The prepared image restores the final diameter/k response if trials changed it, then
+thresholds the original float32 DoG response with `response >= threshold`. It labels
+8-connected foreground components in row-major anchor order. These are threshold objects,
+not independently segmented cells. Accepted centers must be unique finite integral x/y
+pairs inside the image on foreground pixels. A sparse center-pixel lookup associates
+centers with components; no full-image uint32 label plane is retained.
+
+Each detailed `Float64Array` record contains 14 values. Offsets 0-7 retain the legacy
+schema above; the additional fields are:
+
+| Offset | Field | Meaning |
+| --- | --- | --- |
+| 8 | `mean_squared_radius_px2` | Binary covariance trace `(m2_xx + m2_yy) / area` |
+| 9 | `x_min` | Minimum included pixel X |
+| 10 | `y_min` | Minimum included pixel Y |
+| 11 | `x_max_exclusive` | Right boundary, one beyond maximum included X |
+| 12 | `y_max_exclusive` | Bottom boundary, one beyond maximum included Y |
+| 13 | `touches_edge` | 1 if any component pixel touches an image edge, otherwise 0 |
+
+`center_components` is a `Uint32Array` mapping each accepted center to its zero-based
+component index. TypeScript converts it to each object's `centerIndices`. The client
+copies the centers before transfer so saved centers remain usable; the worker frees
+owned Wasm results in `finally` after extracting arrays.
+
+## Summary and export population
+
+The visible mean, median, population standard deviation, and n cover objects with exactly
+one retained center that do not touch the image edge. This is an approximation to
+individual-cell morphology, not a validated cell-area measurement. Multiple-center objects
+remain whole; their area is never divided by their center count. All-object, one-center,
+multiple-center, no-center, and edge counts describe the full mask; edge counts overlap the
+center categories.
+
+Area uses px^2; equivalent diameter uses px. Roundness and inertia ratio are dimensionless.
+Mean squared radius uses px^2 and is distinct from inertia ratio and the old Appion
+intensity-weighted moment. Each metric excludes nonfinite values and reports its own n;
+empty metrics display `--` and export an empty CSV field.
+
+The count CSV retains its original 24 columns and appends eleven morphology columns:
+`morphology_object_count`, `single_center_objects`, `multi_center_objects`,
+`no_center_objects`, `edge_objects`, `morphology_sample_n`, `mean_area_px2`,
+`median_area_px2`, `mean_roundness`, `mean_inertia_ratio`, and `mean_squared_radius_px2`.
+
+**Download object measurements CSV** saves `object-measurements.csv` for the selected
+image. It includes every component, including edge and no-center objects, saved detector
+settings/method/version, geometry, exclusive bounds, edge flags, center counts, and
+one-based accepted-center indices. These exports describe the saved analysis rather than
+current editable controls. Neither CSV is a reloadable session.
+
+Up to three distinct challenge cards use raw image crops, gold component bounding boxes,
+and green accepted centers. Selection prefers the component with most centers, then the
+largest and least-round interior single-center objects, with a no-center fallback.
+**Inspect this region** navigates the main viewer without rerunning detection. The cards
+explain retained DoG maxima and spacing; they do not claim boundary splitting or shape
+rejection.
 
 ## Shape definitions
 
@@ -108,6 +181,11 @@ the harness opens `/dist/` and fetches its temporary masks from ignored `generat
 PLAYWRIGHT_BROWSERS_PATH=/Users/vosslab/.cache/ms-playwright \
   node tests/playwright/verify_blob_features.mjs http://127.0.0.1:4188/
 ```
+
+These parity harnesses target the legacy eight-value primitive. Their earlier receipts
+do not establish the new 14-value schema or saved-analysis integration. New Rust and
+TypeScript morphology checks and the browser specification are tracked separately in
+[morphology_insights.md](active_plans/reports/morphology_insights.md).
 
 Actual verification results belong in [VERIFICATION.md](VERIFICATION.md). These checks establish
 implementation parity only; they do not validate blob shape as a cell identity criterion.

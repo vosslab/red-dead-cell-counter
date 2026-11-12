@@ -1,16 +1,36 @@
 /// <reference types="node" />
-// Selector contract: native arrival/Advanced controls in src/index.html:13, src/index.html:213;
+// Selector contract: arrival/refinement controls and visible settings in src/index.html;
 // result rows and saved-setting captions in src/image_workspace.ts; viewer tabs in src/image_viewer.ts.
 import { expect, test, type Download, type Locator, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import type { SavedAnalysis, WorkerReply } from "../../src/analysis_types.js";
+import {
+  installWorkerLog,
+  workerLog,
+  type Detection,
+  type RefinementLog,
+} from "./helper_worker_log.js";
 
 const a501 = path.join(process.cwd(), "IMAGES", "A501.jpg");
 
 type Payload = { name: string; mimeType: string; buffer: Buffer };
-type AutomaticResult = { centers: number[]; analysis: SavedAnalysis };
-type WorkerLog = { results: AutomaticResult[]; previews: { threshold: number; k: number }[] };
+
+async function refinements(page: Page): Promise<RefinementLog[]> {
+  return (await workerLog(page)).refinements;
+}
+
+function finalDetection(result: RefinementLog): Detection {
+  const final = result.detections.slice(-1)[0];
+  expect(final, "refinement must rerun a chosen trial").toBeDefined();
+  expect(result.detections).toHaveLength(22);
+  const trials = result.detections.slice(0, -1);
+  for (const axis of ["diameter", "k", "threshold"] as const)
+    expect(new Set(trials.map((trial) => trial.settings[axis])).size).toBeGreaterThan(1);
+  expect(trials).toContainEqual(final);
+  const counts = trials.map((trial) => trial.centers.length / 2).sort((a, b) => a - b);
+  expect(final!.centers.length / 2).toBe(counts[10]);
+  return final!;
+}
 
 async function realImageCrop(page: Page, side = 128): Promise<Payload> {
   const encoded = (await readFile(a501)).toString("base64");
@@ -77,69 +97,21 @@ async function open(page: Page): Promise<void> {
   await expect(page).toHaveTitle("Red Dead Cell Counter");
 }
 async function advanced(page: Page): Promise<void> {
-  const panel = page.locator("#advanced-settings");
-  if ((await panel.getAttribute("open")) === null) await panel.locator("summary").first().click();
+  await expect(page.locator("#advanced-settings")).toBeVisible();
 }
 async function count(page: Page): Promise<void> {
-  await page.getByRole("button", { name: "Count cells", exact: true }).click();
-  await expect(page.locator("#status")).toContainText("Automatic counting finished", {
-    timeout: 230_000,
+  await page.getByRole("button", { name: "Refine and count", exact: true }).click();
+  await expect(page.locator("#status")).toContainText("Automatic refinement finished", {
+    timeout: 1_150_000,
   });
-}
-async function workerLog(page: Page): Promise<WorkerLog> {
-  return page.evaluate(() => (window as unknown as { workerLog: WorkerLog }).workerLog);
 }
 
 test.beforeEach(async ({ page }) => {
+  test.setTimeout(240_000);
   page.on("pageerror", (error: Error): void => {
     throw error;
   });
-  await page.addInitScript(() => {
-    const log = {
-      results: [] as AutomaticResult[],
-      previews: [] as { threshold: number; k: number }[],
-    };
-    (window as unknown as { workerLog: WorkerLog }).workerLog = log;
-    const OriginalWorker = window.Worker;
-    window.Worker = class extends OriginalWorker {
-      constructor(url: string | URL, options?: WorkerOptions) {
-        super(url, options);
-        this.addEventListener("message", (event: MessageEvent<WorkerReply>) => {
-          const reply = event.data;
-          if (reply.kind === "automatic" && reply.ok)
-            log.results.push({ centers: Array.from(reply.centers), analysis: reply.analysis });
-        });
-      }
-      override postMessage(
-        message: unknown,
-        transferOrOptions?: Transferable[] | StructuredSerializeOptions,
-      ): void {
-        const request = message as { kind?: string; threshold: number; k: number };
-        if (request.kind === "preview")
-          log.previews.push({ threshold: request.threshold, k: request.k });
-        if (
-          request.kind === "automatic" &&
-          (window as unknown as { failAutomatic?: boolean }).failAutomatic
-        ) {
-          queueMicrotask(() =>
-            this.dispatchEvent(
-              new MessageEvent("message", {
-                data: {
-                  id: (message as { id: number }).id,
-                  kind: "automatic",
-                  ok: false,
-                  error: "Injected worker failure",
-                },
-              }),
-            ),
-          );
-          return;
-        }
-        if (Array.isArray(transferOrOptions)) super.postMessage(message, transferOrOptions);
-        else super.postMessage(message, transferOrOptions);
-      }
-    };
-  });
+  await installWorkerLog(page);
 });
 
 test("native image picker opens the workbench without counting", async ({ page }) => {
@@ -160,9 +132,9 @@ test("native image picker opens the workbench without counting", async ({ page }
   await expect(page.locator("#rows tr")).toHaveCount(1);
   await expect(page.locator("#rows tr")).toContainText("Pending");
   await expect(page.locator("#selected-image-count")).toHaveText("--");
-  await expect(page.getByRole("button", { name: "Count cells", exact: true })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Refine and count", exact: true })).toBeEnabled();
   await expect(page.getByRole("button", { name: "Download CSV", exact: true })).toBeDisabled();
-  await expect(page.getByLabel("Cell diameter (px)")).toBeHidden();
+  await expect(page.getByLabel("Cell diameter (px)")).toBeVisible();
   expect((await workerLog(page)).results).toHaveLength(0);
   const next = page.waitForEvent("filechooser");
   await page.locator("#choose-more-images").click();
@@ -180,14 +152,14 @@ test("Try example lazily counts the real image through the same automatic pipeli
   await open(page);
   expect(examples).toHaveLength(0);
   await page.getByRole("button", { name: "Try an example", exact: true }).click();
-  await expect(page.locator("#rows tr")).toContainText("Done", { timeout: 60_000 });
-  const example = (await workerLog(page)).results[0];
+  await expect(page.locator("#rows tr")).toContainText("Done", { timeout: 230_000 });
+  const example = finalDetection((await refinements(page))[0]!);
   expect(example).toBeDefined();
   expect(examples).toHaveLength(1);
   await picker(page).setInputFiles(a501);
   await expect(page.locator("#rows tr")).toContainText("Pending");
   await count(page);
-  expect((await workerLog(page)).results[1]).toEqual(example);
+  expect(finalDetection((await refinements(page))[1]!)).toEqual(example);
 });
 
 test("automatic results and CSV preserve each saved cutoff after manual controls change", async ({
@@ -196,41 +168,46 @@ test("automatic results and CSV preserve each saved cutoff after manual controls
   await open(page);
   await picker(page).setInputFiles(await realImageCrop(page));
   await count(page);
-  const saved = (await workerLog(page)).results[0]!;
-  expect(saved.analysis.mode).toBe("automatic");
-  expect(saved.analysis.reviewReasons).toContain("provisional_calibration");
-  expect(saved.analysis.settings.diameter).toBe(10);
-  expect(saved.analysis.settings.k).toBe(4);
-  expect(saved.analysis.settings.threshold).toBeGreaterThan(0);
-  await expect(page.locator("#analysis-notice")).toContainText("Automatic estimate");
+  const result = (await refinements(page))[0]!;
+  const saved = finalDetection(result);
+  const [before] = await csvRows(page);
+  expect(before).toMatchObject({
+    mode: "automatic",
+    method: "dog_ccd_median",
+    algorithm_version: "dog-refinement-1",
+    refinement_runs_requested: "21",
+    refinement_runs_successful: "21",
+    refinement_runs_failed: "0",
+    seed_method: result.seed.analysis.method,
+    seed_threshold: result.seed.analysis.settings.threshold.toFixed(5),
+    count: String(saved.centers.length / 2),
+    diameter_px: saved.settings.diameter.toFixed(2),
+    k: saved.settings.k.toFixed(2),
+    threshold: saved.settings.threshold.toFixed(5),
+  });
+  expect(before!.review_reasons).toContain("provisional_refinement");
+  await expect(page.locator("#selected-image-count")).toHaveText(
+    (saved.centers.length / 2).toLocaleString("en-US"),
+  );
+  await expect(page.locator("#analysis-notice")).toContainText(/Experimental refinement pipeline/);
   await advanced(page);
-  await page.getByLabel("DoG k", { exact: true }).fill("6");
+  await page.getByLabel("DoG k").fill("6");
   await page.getByLabel("Response threshold").fill("0.50000");
   await expect(page.locator("#selected-image-details")).toContainText("Controls changed");
   await page.getByLabel("Show detections").uncheck();
   await page.getByRole("tab", { name: "DoG", exact: true }).click();
-  await expect(page.locator("#image-view-status")).toContainText("k 4.00");
+  await expect(page.locator("#image-view-status")).toContainText(
+    `k ${saved.settings.k.toFixed(2)}`,
+  );
   await page.getByRole("tab", { name: "Threshold", exact: true }).click();
   await expect(page.locator("#image-view-status")).toContainText(
-    saved.analysis.settings.threshold.toFixed(5),
+    saved.settings.threshold.toFixed(5),
   );
   expect((await workerLog(page)).previews.slice(-1)[0]).toEqual({
-    k: 4,
-    threshold: saved.analysis.settings.threshold,
+    k: saved.settings.k,
+    threshold: Math.fround(saved.settings.threshold),
   });
-  const [row] = await csvRows(page);
-  expect(row).toMatchObject({
-    count: String(saved.centers.length / 2),
-    status: "completed",
-    diameter_px: "10.00",
-    k: "4.00",
-    threshold: saved.analysis.settings.threshold.toFixed(5),
-    algorithm_version: saved.analysis.version,
-    method: saved.analysis.method,
-    mode: "automatic",
-    review_reasons: saved.analysis.reviewReasons.join("; "),
-    no_signal: String(saved.analysis.noSignal),
-  });
+  expect(await csvRows(page)).toEqual([before]);
 });
 
 test("automatic counts depend on each image, independent of batch order and filenames", async ({
@@ -239,11 +216,11 @@ test("automatic counts depend on each image, independent of batch order and file
   await open(page);
   const first = await realImageCrop(page, 128);
   const second = await realImageCrop(page, 320);
-  const singles: AutomaticResult[] = [];
+  const singles: Detection[] = [];
   for (const image of [first, second]) {
     await picker(page).setInputFiles(image);
     await count(page);
-    singles.push((await workerLog(page)).results.slice(-1)[0]!);
+    singles.push(finalDetection((await refinements(page)).slice(-1)[0]!));
   }
   const renamed = [
     { ...second, name: '=first,"sample".png' },
@@ -251,25 +228,27 @@ test("automatic counts depend on each image, independent of batch order and file
   ];
   await picker(page).setInputFiles(renamed);
   await advanced(page);
-  await page.getByLabel("Cell diameter (px)", { exact: true }).fill("10");
-  await page.getByLabel("DoG k", { exact: true }).fill("4");
+  await page.getByLabel("Cell diameter (px)").fill("10");
+  await page.getByLabel("DoG k").fill("4");
   await page.getByLabel("Response threshold").fill("0.7");
   await count(page);
-  expect((await workerLog(page)).results.slice(-2)).toEqual(singles.slice().reverse());
+  expect((await refinements(page)).slice(-2).map(finalDetection)).toEqual(
+    singles.slice().reverse(),
+  );
   const rows = await csvRows(page);
   expect(rows.map((row) => row.filename)).toEqual(['\'=first,"sample".png', "second.png"]);
   expect(rows.map((row) => row.threshold)).toEqual(
     singles
       .slice()
       .reverse()
-      .map((result) => result.analysis.settings.threshold.toFixed(5)),
+      .map((result) => result.settings.threshold.toFixed(5)),
   );
 });
 
 test("all supplied images receive their own automatic count and review record", async ({
   page,
 }) => {
-  test.setTimeout(240_000);
+  test.setTimeout(1_200_000);
   const names = [
     "A101.jpg",
     "A501.jpg",
@@ -285,11 +264,11 @@ test("all supplied images receive their own automatic count and review record", 
   await count(page);
   await expect(page.locator("#rows tr")).toHaveCount(8);
   await expect(page.locator("#rows tr .ok")).toHaveCount(8);
-  const results = (await workerLog(page)).results;
+  const logs = await refinements(page);
+  expect(new Set(logs.map((log) => log.seed.analysis.settings.threshold)).size).toBeGreaterThan(1);
+  const results = logs.map(finalDetection);
   expect(results).toHaveLength(8);
-  expect(new Set(results.map((result) => result.analysis.settings.threshold)).size).toBeGreaterThan(
-    1,
-  );
+  expect(new Set(results.map((result) => result.settings.threshold)).size).toBeGreaterThan(1);
   const rows = await csvRows(page);
   expect(rows.map((row) => row.filename)).toEqual(names);
   for (const [index, row] of rows.entries()) {
@@ -298,9 +277,10 @@ test("all supplied images receive their own automatic count and review record", 
       count: String(result.centers.length / 2),
       mode: "automatic",
       status: "completed",
-      threshold: result.analysis.settings.threshold.toFixed(5),
+      threshold: result.settings.threshold.toFixed(5),
     });
-    expect(result.analysis.reviewReasons).toContain("provisional_calibration");
+    expect(row.review_reasons).toContain("provisional_refinement");
+    expect(row.refinement_runs_successful).toBe("21");
   }
   await test.info().attach("eight_automatic_results.json", {
     body: JSON.stringify(names.map((name, index) => ({ name, ...results[index] }))),
@@ -341,6 +321,11 @@ test("bad and blank images do not prevent a valid automatic result", async ({ pa
     no_signal: "true",
     mode: "automatic",
   });
+  const logs = await refinements(page);
+  expect(logs[0]!.seed.analysis.noSignal).toBe(true);
+  expect(logs[0]!.detections).toHaveLength(0);
+  expect(logs[1]!.detections).toHaveLength(22);
+  expect(rows[1]!.refinement_runs_requested).toBe("");
   expect(Number(rows[1]!.threshold)).toBeGreaterThan(0);
   expect(rows[1]!.review_reasons).not.toBe("");
   expect(rows[2]).toMatchObject({ status: "completed", mode: "automatic" });
@@ -382,12 +367,12 @@ test("failed and cancelled recounts preserve saved rows and allow a fresh retry"
   await page.evaluate(() => {
     (window as unknown as { failAutomatic: boolean }).failAutomatic = false;
   });
-  await page.getByRole("button", { name: "Count cells", exact: true }).click();
+  await page.getByRole("button", { name: "Refine and count", exact: true }).click();
   await expect(page.locator("#rows tr").filter({ hasText: "second.png" })).toContainText(
     "Queued (previous count retained)",
   );
   await expect(page.locator("#batch-summary")).toContainText("queued");
-  await page.getByRole("button", { name: "Cancel counting", exact: true }).click();
+  await page.locator("#cancel").click();
   await expect(page.locator("#status")).toContainText(/cancelled/i);
   const cancelled = await csvRows(page);
   expect(cancelled.map((row) => ({ ...row, status: "", error: "" }))).toEqual(
@@ -709,7 +694,7 @@ test("a delayed derived preview cannot replace a newly chosen source image", asy
   await expect(page.locator("#raw-view")).toHaveAttribute("aria-selected", "true");
 });
 
-test("comparison supports 100 real-image runs and summarizes their visible counts", async ({
+test("selected refinement applies a real trial and summarizes 100 visible counts", async ({
   page,
 }) => {
   test.setTimeout(45_000);
@@ -733,25 +718,34 @@ test("comparison supports 100 real-image runs and summarizes their visible count
     review_reasons: "",
     no_signal: "",
   });
-  await page.getByLabel("Comparison runs").fill("14");
+  await page.getByLabel("Refinement trials").fill("14");
   await page.locator("#compare").click();
   await expect(page.locator("#status")).toContainText(/15.*100/);
-  await page.getByLabel("Comparison runs").fill("101");
+  await page.getByLabel("Refinement trials").fill("101");
   await advanced(page);
   await page.locator("#compare").click();
   await expect(page.locator("#status")).toContainText(/15.*100/);
   await expect(page.locator("#comparison-rows tr")).toHaveCount(0);
 
-  await page.getByLabel("Comparison runs").fill("100");
+  await page.getByLabel("Refinement trials").fill("100");
   await page.locator("#compare").click();
 
+  await expect(page.locator("#status")).toContainText("Selected image refinement finished");
+  await page.getByText("Inspect all trial settings and counts", { exact: true }).click();
   const rows = page.locator("#comparison-rows tr");
   await expect(rows).toHaveCount(100, { timeout: 40_000 });
+  await expect(page.locator("#comparison-statistics")).toBeVisible();
   await expect(page.locator("#rows tr").filter({ hasText: "untouched.png" })).toContainText(
     "Pending",
   );
+  await expect(page.locator("#status")).toContainText("Selected image refinement finished");
   const compared = await csvRows(page);
-  expect(compared[0]!.mode).toBe("manual");
+  expect(compared[0]).toMatchObject({
+    mode: "automatic",
+    method: "dog_ccd_median",
+    refinement_runs_successful: "100",
+  });
+  await expect(page.locator("#status")).toContainText("Selected image refinement finished");
   expect(compared[1]).toEqual(manual[1]);
   await expect(page.locator("#comparison-progress")).toHaveAttribute("max", "100");
   await expect(page.locator("#comparison-progress")).toHaveAttribute("value", "100");
@@ -794,7 +788,7 @@ test("cancelled comparison preserves partial progress rather than claiming compl
   await expect
     .poll(async () => Number(await page.locator("#comparison-progress").getAttribute("value")))
     .toBeGreaterThanOrEqual(2);
-  await page.getByRole("button", { name: "Cancel comparison", exact: true }).click();
+  await page.locator("#cancel-comparison").click();
   await expect(page.locator("#comparison-status")).toContainText(/cancelled/i);
   const completed = Number(await page.locator("#comparison-progress").getAttribute("value"));
   expect(completed).toBeGreaterThanOrEqual(2);
@@ -803,38 +797,37 @@ test("cancelled comparison preserves partial progress rather than claiming compl
   await expect(page.locator("#compare")).toBeEnabled();
 });
 
-test("comparison requires a threshold above 0.00001 and keeps small valid values", async ({
+test("Apply reruns the chosen trial and preserves its settings after controls change", async ({
   page,
 }) => {
   await open(page);
-  const crop = await realImageCrop(page);
-  await picker(page).setInputFiles(crop);
-  await advanced(page);
-  await page.getByLabel("Response threshold").fill("0.00001");
-  await page.locator("#compare").click();
-  await expect(page.locator("#status")).toContainText(/threshold above 0\.00001/i);
-  await expect(page.locator("#comparison-rows tr")).toHaveCount(0);
-
-  await page.getByLabel("Comparison runs").fill("15");
+  await picker(page).setInputFiles(await realImageCrop(page));
+  await page.getByLabel("Refinement trials").fill("15");
   await page.getByLabel("Response threshold").fill("0.00002");
-  await page.locator("#compare").click();
-  await expect(page.locator("#comparison-status")).toContainText("15 successful", {
-    timeout: 80_000,
+  await page.getByRole("button", { name: "Refine selected image", exact: true }).click();
+  await expect(page.locator("#status")).toContainText("Selected image refinement finished");
+  const log = (await refinements(page))[0]!;
+  expect(log.detections).toHaveLength(16);
+  expect(
+    new Set(log.detections.slice(0, 15).map((run) => run.settings.threshold)).size,
+  ).toBeGreaterThan(1);
+  await page.getByText("Inspect all trial settings and counts", { exact: true }).click();
+  const trial = page.locator("#comparison-rows tr").filter({ hasText: "Factorial" }).first();
+  await expect(trial).toBeVisible();
+  const settings = await trial.locator("td").allTextContents();
+  const beforeApply = (await workerLog(page)).detections.length;
+  await trial.getByRole("button", { name: /^Apply / }).click();
+  await expect(page.locator("#status")).toContainText("Applied manual refinement settings");
+  await expect.poll(async () => (await workerLog(page)).detections.length).toBe(beforeApply + 1);
+  const fresh = (await workerLog(page)).detections.slice(-1)[0]!;
+  const [saved] = await csvRows(page);
+  expect(saved).toMatchObject({
+    diameter_px: settings[0],
+    k: settings[1],
+    threshold: settings[2],
+    count: String(fresh.centers.length / 2),
+    mode: "manual",
   });
-  const thresholds = (
-    await page.locator("#comparison-rows tr td:nth-child(3)").allTextContents()
-  ).map(Number);
-  expect(thresholds).toHaveLength(15);
-  expect(Math.min(...thresholds)).toBeGreaterThan(0);
-  expect(Math.max(...thresholds)).toBeLessThan(0.001);
-  await expect(page.locator("#comparison-rows")).toContainText("Center");
-  await expect(page.locator("#comparison-rows")).toContainText("Factorial");
-  await expect(page.locator("#comparison-rows")).toContainText("Axial");
-  const fractional = page.locator("#comparison-rows tr").filter({ hasText: "Factorial" }).first();
-  await fractional.getByRole("button", { name: "Apply" }).click();
-  for (const id of ["diameter", "k", "threshold"]) {
-    expect(
-      await page.locator(`#${id}`).evaluate((input: HTMLInputElement) => input.validity.valid),
-    ).toBe(true);
-  }
+  await page.getByLabel("DoG k").fill("7");
+  expect(await csvRows(page)).toEqual([saved]);
 });

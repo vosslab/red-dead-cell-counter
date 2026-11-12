@@ -1,17 +1,23 @@
 # Comparison feedback inspection
 
-The current workflow uses **Count cells** to analyze every selected image, with each
-image receiving its own threshold. Advanced settings provide manual analysis and a
-comparison on the selected image; comparison is a sensitivity check, and its tested
-median run can be applied as a manual result. CSV exports one or many selected images.
-See [WORKFLOW_MODES.md](WORKFLOW_MODES.md) and
-[beginner_task_model.md](active_plans/reports/beginner_task_model.md) for the current
-workflow and acceptance checks.
+The current graduate-research workflow uses **Refine and count** to refine diameter, k,
+and threshold independently for every selected image. **Refine selected image** limits
+that operation to the current image. Visible controls set initial diameter/k and a
+15-100-run budget (default 21); the threshold entry is for **Count once with these
+settings**, a selected-image manual action. Each image gets its own Otsu seed and
+representative median trial. Mean, median, population SD, and review notices remain
+visible; the full trial table sits in a native disclosure below the feedback.
+
+Selecting an image restores its saved trial metadata. Applying another trial detects
+fresh centers and saves manual provenance. CSV exports saved per-image provenance and
+refinement summaries, even if controls have since changed. The median and count spread
+describe parameter sensitivity, not accuracy. See
+[refinement_workflow.md](active_plans/reports/refinement_workflow.md) for the current task
+model and pending acceptance evidence.
 
 The inspection findings and scenarios below are historical records from earlier
-interfaces. Their tuning-first, batch-handoff, and recommendation scenarios were
-superseded by the current workflow; retain them as evidence of past inspections, not as
-instructions for using the current interface.
+interfaces. Their beginner path, tuning-first, batch-handoff, and Advanced scenarios are
+superseded; retain them as past inspection evidence, not current usage instructions.
 
 ## Task and evidence scope
 

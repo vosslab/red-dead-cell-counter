@@ -1,9 +1,12 @@
 import { elements } from "./counter_elements.js";
 import { comparisonSettingsText, settings } from "./detector_settings.js";
 import type { SavedAnalysis } from "./analysis_types.js";
-import { formatCount } from "./count_statistics.js";
+import { countStatistics, formatCount } from "./count_statistics.js";
 import { roundSettings, type DetectorSettings } from "./experiment_design.js";
 import { createImageViewer } from "./image_viewer.js";
+import { createMorphologyPanel } from "./morphology_panel.js";
+import { summarizeMorphology } from "./morphology_statistics.js";
+import { downloadCsv } from "./csv_export.js";
 
 export type ImageResult = {
   file: File;
@@ -36,10 +39,6 @@ type ImageWorkspace = {
   download: () => void;
 };
 
-function safeCell(text: string): string {
-  return /^[\t\r\n\0]|^[\t\r\n ]*[=+\-@]/.test(text) ? `'${text}` : text;
-}
-
 function cell(text: string, className?: string): HTMLTableCellElement {
   const output = document.createElement("td");
   output.textContent = text;
@@ -53,6 +52,10 @@ function showNumber(value: number): string {
 
 function reviewReasonText(reason: string): string {
   switch (reason) {
+    case "provisional_refinement":
+      return "Experimental refinement pipeline; inspect the markers before using the count.";
+    case "refinement_sensitive":
+      return "Counts vary substantially across the tried settings. Adjust starting estimates and inspect again.";
     case "provisional_calibration":
       return "Provisional automatic estimate: this method has been tested on eight calibration images and still needs independent validation.";
     case "threshold_sensitive":
@@ -88,6 +91,29 @@ export function createImageWorkspace(
   const imageTools = document.querySelector<HTMLElement>("#image-tools")!;
   const viewTools = document.querySelector<HTMLElement>("#image-view-tools")!;
   const analysisNotice = document.querySelector<HTMLElement>("#analysis-notice")!;
+  const morphologyPanel = createMorphologyPanel({
+    isBusy: hooks.isActive,
+    onInspect: inspectObject,
+  });
+
+  function inspectObject(bounds: readonly [number, number, number, number]): void {
+    const wrap = elements.canvas.parentElement;
+    const result = selection.results[selection.selected];
+    if (hooks.isActive() || !wrap || elements.canvas.hidden || !result?.analysis) return;
+    const padding = result.analysis.settings.diameter;
+    const fit = Math.min(1, wrap.clientWidth / elements.canvas.width);
+    const desiredScale = Math.min(
+      wrap.clientWidth / (bounds[2] - bounds[0] + 2 * padding),
+      wrap.clientHeight / (bounds[3] - bounds[1] + 2 * padding),
+    );
+    elements.zoom.value = String(Math.min(6400, Math.max(25, (100 * desiredScale) / fit)));
+    updateZoom();
+    const scale = fit * (Number(elements.zoom.value) / 100);
+    wrap.scrollLeft = ((bounds[0] + bounds[2]) / 2) * scale - wrap.clientWidth / 2;
+    wrap.scrollTop = ((bounds[1] + bounds[3]) / 2) * scale - wrap.clientHeight / 2;
+    wrap.focus({ preventScroll: true });
+    wrap.scrollIntoView({ block: "nearest", behavior: "auto" });
+  }
 
   function updateZoom(): void {
     const percent = Number(elements.zoom.value);
@@ -161,15 +187,17 @@ export function createImageWorkspace(
     const analysis = result?.analysis;
     const notices =
       analysis?.mode === "automatic"
-        ? ["Automatic estimate. Review the detection markers before using this count."]
+        ? analysis.refinement
+          ? []
+          : ["Automatic estimate. Review the detection markers before using this count."]
         : analysis
           ? ["Manual settings. Review the detection markers before using this count."]
-          : ["Select Count cells to get an automatic count."];
+          : ["Select Refine and count to get an automatic count."];
     if (analysis?.noSignal) notices.push("No usable signal was found; the saved count is zero.");
     for (const reason of analysis?.reviewReasons ?? []) notices.push(reviewReasonText(reason));
     if (prior)
       notices.push("The displayed count and views are from the previous successful analysis.");
-    if (result?.status === "working") notices.push("Counting this image...");
+    if (result?.status === "working") notices.push("Refining and counting this image...");
     if (result?.status === "cancelled")
       notices.push("The latest count was cancelled. You can retry it.");
     if (result?.error) notices.push(`The latest attempt failed: ${result.error}`);
@@ -177,17 +205,25 @@ export function createImageWorkspace(
     if (!result) {
       elements.selectedImageDetails.textContent = "Choose an image to inspect it.";
     } else if (analysis) {
+      const refinement = analysis.refinement;
+      const startingSettings = refinement?.startingSettings ?? analysis.settings;
       const changed = Object.entries(roundSettings(settings())).some(
         ([key, value]) =>
           (analysis.mode === "manual" || key !== "threshold") &&
-          value !== analysis.settings[key as keyof DetectorSettings],
+          value !==
+            (analysis.mode === "manual" ? analysis.settings : startingSettings)[
+              key as keyof DetectorSettings
+            ],
       );
-      elements.selectedImageDetails.textContent = `${changed ? "Controls changed; the displayed count still uses " : "Counted with "}${comparisonSettingsText(analysis.settings)}. ${formatCount(result.width)} x ${formatCount(result.height)} px. Method: ${analysis.method}; version: ${analysis.version}.`;
+      const method = refinement
+        ? "Refined count."
+        : `Method: ${analysis.method}; version: ${analysis.version}.`;
+      elements.selectedImageDetails.textContent = `${changed ? "Controls changed; the displayed count still uses " : "Counted with "}${comparisonSettingsText(analysis.settings)}. ${formatCount(result.width)} x ${formatCount(result.height)} px. ${method}`;
     } else if (result.error) {
       elements.selectedImageDetails.textContent = `${result.error} Choose another image or retry analysis.`;
     } else {
       elements.selectedImageDetails.textContent =
-        "Ready to inspect. Select Count cells for an automatic estimate.";
+        "Ready to inspect. Select Refine and count for an automatic estimate.";
     }
   }
 
@@ -233,6 +269,7 @@ export function createImageWorkspace(
 
   function render(): void {
     updateSummary();
+    morphologyPanel.render(selection.results[selection.selected]);
     elements.rows.replaceChildren();
     selection.results.forEach(function addRow(result: ImageResult, index: number): void {
       const row = document.createElement("tr");
@@ -276,10 +313,18 @@ export function createImageWorkspace(
   }
 
   function download(): void {
-    const lines = [
-      "filename,width,height,count,status,error,diameter_px,k,threshold,algorithm_version,method,mode,review_reasons,no_signal",
-    ];
+    const headers =
+      "filename,width,height,count,status,error,diameter_px,k,threshold,algorithm_version,method,mode,review_reasons,no_signal,refinement_runs_requested,refinement_runs_successful,refinement_runs_failed,seed_method,seed_threshold,count_mean,count_median,count_sd,count_min,count_max,morphology_object_count,single_center_objects,multi_center_objects,no_center_objects,edge_objects,morphology_sample_n,mean_area_px2,median_area_px2,mean_roundness,mean_inertia_ratio,mean_squared_radius_px2".split(
+        ",",
+      );
+    const rows: string[][] = [];
     for (const result of selection.results) {
+      const refinement = result.analysis?.refinement;
+      const counts =
+        refinement?.runs.flatMap((run) => (run.count === undefined ? [] : [run.count])) ?? [];
+      const statistics = countStatistics(counts);
+      const morphology = result.analysis?.morphology;
+      const summary = morphology ? summarizeMorphology(morphology) : undefined;
       const fields = [
         result.file.name,
         String(result.width),
@@ -295,23 +340,31 @@ export function createImageWorkspace(
         result.analysis?.mode ?? "",
         result.analysis?.reviewReasons.join("; ") ?? "",
         result.analysis ? String(result.analysis.noSignal) : "",
+        refinement ? String(refinement.requestedRuns) : "",
+        refinement ? String(counts.length) : "",
+        refinement ? String(refinement.runs.length - counts.length) : "",
+        refinement?.seedMethod ?? "",
+        refinement?.startingSettings.threshold.toFixed(5) ?? "",
+        statistics?.mean.toFixed(2) ?? "",
+        statistics?.median.toFixed(2) ?? "",
+        statistics?.standardDeviation.toFixed(2) ?? "",
+        counts.length ? String(Math.min(...counts)) : "",
+        counts.length ? String(Math.max(...counts)) : "",
+        summary ? String(summary.objectCount) : "",
+        summary ? String(summary.singleCenterCount) : "",
+        summary ? String(summary.multiCenterCount) : "",
+        summary ? String(summary.noCenterCount) : "",
+        summary ? String(summary.edgeCount) : "",
+        summary ? String(summary.eligibleCount) : "",
+        summary?.metrics.areaPx?.mean.toFixed(2) ?? "",
+        summary?.metrics.areaPx?.median.toFixed(2) ?? "",
+        summary?.metrics.roundness?.mean.toFixed(2) ?? "",
+        summary?.metrics.inertiaRatio?.mean.toFixed(2) ?? "",
+        summary?.metrics.meanSquaredRadiusPx2?.mean.toFixed(2) ?? "",
       ];
-      // ASVS 1.2.10: prefix formula-like filenames before spreadsheet export.
-      lines.push(
-        fields
-          .map(function quote(value: string): string {
-            const safe = safeCell(value).replace(/"/g, '""');
-            return `"${safe}"`;
-          })
-          .join(","),
-      );
+      rows.push(fields);
     }
-    const blob = new Blob([lines.join("\r\n")], { type: "text/csv" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = "dead-cell-counts.csv";
-    link.click();
-    URL.revokeObjectURL(link.href);
+    downloadCsv("dead-cell-counts.csv", headers, rows);
   }
 
   elements.zoom.addEventListener("input", updateZoom);
@@ -336,6 +389,7 @@ export function createImageWorkspace(
     invalidate: (): void => viewer.invalidate(),
     clear: (): void => {
       viewer.clear();
+      morphologyPanel.clear();
       inspection.hidden = true;
       imageTools.hidden = true;
       viewTools.hidden = true;

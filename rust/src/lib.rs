@@ -9,7 +9,7 @@ mod automatic_threshold;
 mod blob_features;
 mod prepared_image;
 pub use automatic_threshold::{AUTOMATIC_VERSION, AutomaticDetection, ThresholdMethod};
-pub use blob_features::measure_blobs_core;
+pub use blob_features::{ObjectMeasurements, measure_blobs_core, measure_objects_core};
 pub use prepared_image::PreparedImage;
 
 const MAX_PIXELS: usize = 40_000_000;

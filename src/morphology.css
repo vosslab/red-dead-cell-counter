@@ -1,0 +1,129 @@
+.morphology-panel {
+  min-width: 0;
+  margin-top: 1.75rem;
+  padding-top: 0.25rem;
+  border-top: 2px solid var(--ink);
+}
+.morphology-panel p,
+.morphology-definitions {
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+.morphology-note {
+  color: #51351f;
+}
+.results-panel .morphology-table {
+  width: 100%;
+  table-layout: fixed;
+  font-size: clamp(0.66rem, 1.1vw, 0.8rem);
+  font-variant-numeric: tabular-nums;
+}
+.morphology-table .metric-name {
+  width: 30%;
+}
+.morphology-table .metric-count {
+  width: 10%;
+}
+.results-panel .morphology-table th {
+  width: auto;
+  font-size: inherit;
+  letter-spacing: normal;
+  text-transform: none;
+  border-bottom: 1px solid #8c623366;
+}
+.results-panel .morphology-table th,
+.results-panel .morphology-table td {
+  padding: 0.6rem 0.18rem;
+  vertical-align: top;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.results-panel .morphology-table th:first-child {
+  text-align: left;
+}
+.results-panel .morphology-table tbody tr {
+  cursor: auto;
+}
+.results-panel .morphology-table tbody tr:hover {
+  background: transparent;
+}
+.morphology-definitions {
+  margin: 1rem 0;
+}
+.morphology-definitions summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+.morphology-definitions dt {
+  margin-top: 0.7rem;
+  font-weight: 700;
+}
+.morphology-definitions dd {
+  margin: 0.15rem 0 0;
+}
+#download-morphology {
+  max-width: 100%;
+  width: 100%;
+  padding-inline: 0.6rem;
+  overflow-wrap: anywhere;
+}
+.challenge-regions {
+  margin-top: 1.5rem;
+  padding: 1.15rem;
+  color: var(--paper-light);
+  border: 2px solid #70411f;
+  background: #231109;
+}
+.challenge-regions h2 {
+  margin-top: 0;
+}
+#challenge-status {
+  font-size: 0.9rem;
+}
+.challenge-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
+  gap: 1rem;
+}
+.challenge-card {
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid #976b41;
+  background: #180d08;
+}
+.challenge-card h3 {
+  margin: 0 0 0.85rem;
+  font-size: 1rem;
+}
+.challenge-card canvas {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin-inline: auto;
+  background: #000;
+}
+.challenge-card p {
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+.challenge-metrics {
+  font-variant-numeric: tabular-nums;
+  color: #efd29d;
+}
+.challenge-card button {
+  max-width: 100%;
+}
+@media (max-width: 850px) {
+  .results-panel .morphology-table {
+    font-size: 0.8rem;
+  }
+}
+@media (max-width: 380px) {
+  .results-panel .morphology-table {
+    font-size: 0.66rem;
+  }
+  .challenge-regions,
+  .challenge-card {
+    padding: 0.75rem;
+  }
+}

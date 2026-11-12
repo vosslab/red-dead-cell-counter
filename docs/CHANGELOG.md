@@ -2,7 +2,26 @@
 
 ## 2026-11-12
 
+### Fixes
+
+- Use HTML anchors for linked screenshot thumbnails so repository Markdown link checks
+  do not mistake image alt text for a link target.
+
 ### Additions and New Features
+
+- Add saved-object insights for the final DoG mask: area, equivalent diameter, roundness,
+  binary inertia ratio, and mean squared radius. Show mean/median/population SD and finite
+  sample n for single-center interior objects, with explicit approximate-cell limitations.
+  Keep all-object/category counts and every component in an object-measurements CSV;
+  append eleven morphology summaries after the original 24 count CSV columns.
+- Add up to three deterministic raw-image challenge crops with component bounds, accepted
+  centers, and viewer navigation. Preserve the existing DoG maxima and spacing rule;
+  morphology does not split clusters or change counts.
+
+- Add required per-image refinement for graduate biology researchers: seed from binary
+  Otsu, run a 15-100-setting design (default 21), and detect final centers with the
+  representative median setting. Save trial metadata per image and append ten refinement
+  summary columns to CSV; retain only final center arrays.
 
 - Added [WALKTHROUGH.md](WALKTHROUGH.md), a guided Choose images, Count cells,
   inspect, and CSV workflow with processing-view explanations, a touching-cells
@@ -37,6 +56,15 @@
 
 ### Behavior or Interface Changes
 
+- Promote Refine and count for every selected image and Refine selected image for one.
+  Keep initial diameter/k, manual threshold, and run-budget controls visible in the main
+  workbench. Show mean, median, and population SD above a collapsible trial table;
+  restore each image's saved trials and preserve saved provenance after control edits.
+- Supersede the earlier beginner/optional-Advanced workflow with required refinement.
+  Count once with these settings and applying another trial remain selected-image manual
+  operations. Mark the combined pipeline provisional; the eight-image Otsu experiment
+  supports seed calibration only, without validating refinement accuracy.
+
 - Reworked the README into a shorter visual front door with three focused workflow
   screenshots, native captions, and links to the detailed walkthrough. Preserved the
   Western identity, provisional status, credits, and local build commands; moved
@@ -65,6 +93,21 @@
 
 ### Fixes and Maintenance
 
+- Define binary inertia ratio as the major/minor covariance eigenvalue ratio throughout
+  the morphology guidance. Enlarge raw challenge crops for readable inspection while
+  retaining their native-pixel measurements and the saved count.
+- Refresh ten production-interface WebPs, including object summaries and a real
+  seven-center H501 cluster. Record static/build checks and browser capture evidence
+  separately from unrun application suites and unvalidated biological accuracy.
+
+- Preserve partial trials after cancelling a first refinement without enabling an inert
+  Apply action; retain trials from a previous saved count on interrupted reruns.
+- Preserve user starting diameter/k when choosing automatic refinement. Keep provenance
+  in design details and compact feedback above the image, with normal controls visible.
+- Split the 911-line browser test into a 96-line worker-log helper and an 830-line
+  counter specification. Update disclosure checks to open the real summary before Apply.
+  Adapt affected tests and add an engine test without executing application suites.
+
 - Skip deleted worktree paths before content-reading hygiene filters, so archived plans can be
   checked without staging Git changes.
 
@@ -87,6 +130,25 @@
   Preserved existing detector settings, prepared-image reuse, and user workflows.
 
 ### Developer Tests and Notes
+
+- Document the separate legacy eight-value and new 14-value geometry contracts, atomic
+  saved-analysis integration, finite-sample statistics, and ownership/evidence in
+  [morphology_insights.md](active_plans/reports/morphology_insights.md). Historical primitive
+  parity is not new integration or biological validation. Application suites remain unrun
+  for this refresh; build, static-check, source-review, and capture receipts are tracked
+  separately as they complete.
+
+- Track the refinement change in
+  [refinement_workflow.md](active_plans/reports/refinement_workflow.md). Both TypeScript
+  checks, focused lint/format, new-test syntax, and canonical production build pass.
+  Fresh independent specification and quality source reviews accept without blockers.
+  Refresh and inspect eight quality-90 WebPs from real-browser documentation captures;
+  visible controls fit 320/768/1440/1920 px without overflow. A501/H501 finish 21/21 trials
+  and export counts 272/2,197, with provisional/sensitivity review flags. These agree less
+  well with uncertain human references than earlier seed counts; no accuracy improvement
+  is established. No Rust, worker ABI, detector math, or dependencies change. The user
+  owns application testing; no application suites or live publication checks run.
+  Earlier 1,155-check and 17-test receipts remain historical for the earlier workflow.
 
 - For the visual documentation refresh, inspected three focused workflow crops and
   refreshed eight interface assets from the local build. Checked 77 local links and

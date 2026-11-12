@@ -1,68 +1,73 @@
-# Counting and inspection workflows
+# Refinement and inspection workflows
 
 ## Start with the images
 
-The saloon opens with **Choose images** and **Try an example**. Choosing files goes
-directly to the counter. Try an example fetches the real A501 image only when requested,
-then counts it through the same automatic pipeline used for uploads.
-
-One selected image gives a single-image workspace; several give a multi-image ledger.
-The number of files determines the scope. There is no mode selector or handoff step.
+Choose one or several JPEG/PNG files. **Try an example** loads the real A501 image and
+runs the same refinement pipeline. File count determines scope; no mode selector is
+needed. Diameter, k, manual threshold, and trial-count controls are visible above
+the workspace. Refinement is part of normal processing for every image.
 
 | Action | Scope | Saved result |
 | --- | --- | --- |
-| Count cells | Every selected image, sequentially | Each image's independently chosen threshold, centers, and analysis metadata |
-| Select a ledger filename | One image | Shows its saved settings and markers without rerunning it |
-| Count selected image with manual settings | Selected image only | Replaces that image's result with an explicitly manual analysis |
-| Compare settings on selected image | Selected image only, 15-100 trials | Applies an actual tested representative median run as manual analysis |
-| Download CSV | Complete selected file set, including partial work | Counts, status/errors, settings, method/version, and review reasons |
+| Refine and count | Every chosen image, sequentially | Independent automatic refinement, centers, settings, and trial metadata. |
+| Refine selected image | Selected image only | Same automatic pipeline and saved refinement metadata. |
+| Select a ledger filename | One image | Restores its saved settings, markers, and refinement feedback without rerunning. |
+| Count once with these settings | Selected image only | Entered diameter/k/threshold applied as manual analysis. |
+| Apply on a trial row | Selected image only | Trial settings rerun and saved as manual analysis. |
+| Download CSV | Chosen set, including partial work | Counts, status/errors, actual settings, method/version, reasons, and trial summaries. |
 
-## Automatic and advanced settings
+## Refine independently per image
 
-**Count cells** starts with diameter 10 px and k 4. Advanced changes to those two
-values affect new automatic runs. The threshold is estimated separately from each
-image's positive DoG response using binary Otsu; the Advanced manual threshold does
-not replace that estimate. Existing counts retain their original settings until a
-successful replacement result is saved.
+For every image, the pipeline starts from fresh pixels and the entered diameter/k
+estimates. Binary Otsu supplies a starting threshold. A 15-100-trial design (21 by
+default) explores diameter/k/threshold, then applies an actual tested run closest to
+the median count. A no-signal result returns zero and skips the sweep. The manual
+threshold box is used only by **Count once with these settings**.
 
-**Advanced settings** holds manual controls and research comparisons. The comparison
-mean, median, and population standard deviation describe variation across settings.
-The representative median run is not an accuracy estimate or a parameter selector
-for the whole batch. Inspect its actual markers before using that result.
+Diameter and k are starting estimates, not guaranteed measurements of cell size.
+Visible statistics and trial progress support routine review; full trial rows and
+design details can be expanded. Inspect the applied markers, then adjust estimates
+and refine again where needed. The median rule does not optimize biological accuracy
+or guarantee stable counts.
 
-All automatic results carry `provisional_calibration`: selection used eight images
-with uncertain ImageJ totals and has no independent biological validation. Other
-review reasons explain low signal, precision limits, or threshold sensitivity.
-See [AUTOMATIC_DETECTOR_EXPERIMENT.md](AUTOMATIC_DETECTOR_EXPERIMENT.md).
+Automatic results use `dog_ccd_median` / `dog-refinement-1` and carry
+`provisional_refinement`. A full trial count span greater than 10% of the selected
+count adds `refinement_sensitive`. The combined pipeline has not been biologically
+validated. The earlier eight-image study covers the Otsu starting-threshold method
+only; see [AUTOMATIC_DETECTOR_EXPERIMENT.md](AUTOMATIC_DETECTOR_EXPERIMENT.md).
 
-## Partial work and recovery
+## Saved results and recovery
 
-Cancel counting stops pending work and preserves completed and previously saved
-analyses. A failed or cancelled rerun can display the previous saved count; its status
-and explanatory text identify that it belongs to the earlier analysis. CSV retains
-that saved metadata alongside the current attempt's status/error. It also includes
-unprocessed rows with empty count fields. Export works with one image and partial sets.
+Editing inputs leaves existing counts attached to their actual saved settings.
+Selecting a ledger row restores that image's settings and refinement feedback;
+it does not set a recipe for the batch. Inspection uses saved settings in the
+Raw/DoG/Threshold views and detection overlay.
 
-Choosing a new file set replaces the current selection. Export before changing sets.
-Image selection, new runs, and settings changes are disabled while processing. Image
-inspection uses the saved cutoff and shares Raw/DoG/Threshold views, zoom, and markers.
+**Cancel refinement** stops pending work and preserves completed and previously
+saved analyses. A failed or cancelled rerun can retain an earlier count, identified
+as a previous saved result. CSV keeps its actual metadata alongside the current
+attempt status/error. Rows without completed analyses have empty count fields.
 
-## Walkthrough and acceptance
+Download before changing the file set or leaving the page. Trial metadata, centers,
+and images persist only in page memory for the current selection. CSV saves totals
+and summary provenance, not all trial rows or a reloadable session.
 
-Task analysis and cognitive walkthroughs ask whether a new biology student can identify
-the next action and interpret the feedback. Browser, keyboard, and accessibility checks
-verify the implementation. These are expert guideline checks, not an actual student
-study; human participation is not a milestone gate.
+## Workflow review boundaries
+
+The intended audience is biology researchers with laboratory experience. Workflow
+review asks whether parameter refinement, marker inspection, sensitivity feedback,
+and export are clear in a normal processing session. Engineering and accessibility
+checks do not establish biological accuracy or constitute a researcher usability study.
 
 | Scenario | Observable completion check |
 | --- | --- |
-| First visit | Choose images is visible on the saloon; selecting files opens the workbench. |
-| No files available | Try an example loads real A501 pixels and produces an automatic count. |
-| First count | Count cells processes one file and exposes count, markers, actual cutoff, and provisional notice. |
-| Collection | Every file gets its own cutoff and saved metadata; ledger selection shows that image's result. |
-| Advanced exploration | Manual analysis and comparison update only the selected row. |
-| Cancel or fail | Finished and prior saved results remain available; CSV identifies partial or failed attempts. |
-| Keyboard inspection | Buttons and tabs expose accessible names; focus, zoom, and arrow-key panning remain usable. |
+| First visit | Choose images opens the workspace; Try an example starts real-image refinement. |
+| Normal refinement | Every chosen image gets an independent seed and parameter trials. |
+| Inspection | Saved count, actual settings, markers, review notice, and trial feedback are available. |
+| Selected refinement | Only the selected image is refined again. |
+| Manual check | Count once or Apply updates only the selected image as manual analysis. |
+| Cancel or fail | Completed and prior saved results remain available with current attempt status. |
+| Export | CSV includes actual settings and refinement summaries for available results. |
 
 Implementation owners: [counter_controller.ts](../src/counter_controller.ts),
 [image_workspace.ts](../src/image_workspace.ts), [analysis_types.ts](../src/analysis_types.ts),

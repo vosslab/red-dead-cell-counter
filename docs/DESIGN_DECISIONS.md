@@ -131,12 +131,12 @@ counting raw thresholded connected components.
 
 **Consequence.** The manual starting values are a 10-pixel target diameter, k = 4, and
 response threshold 0.10. Automatic counting starts with the same diameter/k and fits
-its own threshold independently for each image. Single-image comparison starts with a 15-run central composite
+its own seed threshold independently for each image. Required per-image refinement starts with a 15-run central composite
 design: eight factorial corners, six axial points, and one center. The default 21 runs
 add six inner-axis points. Users can choose 15-100 runs; larger budgets add deterministic
 settings spread across the range. For three factors, alpha = 8^(1/4),
 following the [NIST central composite design guidance](https://www.itl.nist.gov/div898/handbook/pri/section3/pri3361.htm).
-Diameter, k, and threshold vary in logarithmic coordinates. The default outer ranges
+Diameter, k, and threshold vary in logarithmic coordinates. For the illustrative manual 10/4/0.10 starting point, the outer ranges
 are 5 to 20 pixels, k = 2 to 8, and threshold 0.025 to 0.4; when a requested window would
 exceed detector bounds, it recenters at the bounded range's geometric mean. Actual run
 settings are rounded to two decimals for diameter/k and five for threshold, so the table,
@@ -202,32 +202,35 @@ available; panning does not alter image coordinates, detection data, or zoom.
 
 **Owner.** `rust/src/lib.rs`, `src/worker.ts`, `src/image_viewer.ts`, and `src/image_workspace.ts`
 
-### Beginner counting and advanced research
+### Required per-image refinement
 
-**Decision.** Make Choose images, Count cells, inspect markers, and Download CSV the
-primary path. Infer one-image or multi-image scope from the selected file set. Keep
-manual selected-image analysis and 15-100 comparison trials in Advanced settings.
+**Decision.** Make Refine and count the primary action for all selected images, with
+Refine selected image for one image. Keep diameter, k, threshold, and run-budget controls
+visible in the main workbench for graduate biology researchers with laboratory experience.
+Count once with these settings is a selected-image manual action.
 
-**Why.** Students should reach an inspectable count without first learning detector
-parameters or choosing a processing mode. Research comparisons remain useful for
-exploring sensitivity, but their representative median does not establish accuracy.
+**Why.** Refinement is the required workflow. Researchers need to inspect parameter
+sensitivity alongside the resulting detections without discovering a separate Advanced mode.
+A representative median count remains an estimate, not evidence of biological accuracy.
 
-**Consequence.** Delete mode-switch and batch-handoff state. Automatic processing fits
-each image independently. Manual actions update only the selected image. Advanced
-diameter/k edits affect new automatic runs; manual threshold edits do not override
-the automatic selector. Existing results retain their actual saved settings. The
-compact Western workbench keeps filename, count, method, and review notices together.
-Cognitive walkthroughs and guideline checks assess the interface; they are not a
-student study and human participation is not an engineering milestone gate.
+**Consequence.** For each fresh image, use binary Otsu at the visible starting diameter/k
+as a seed, run the existing 15-100-setting logarithmic design (default 21), select the
+existing representative median run, and rerun its settings through the prepared-image cache.
+A no-signal seed returns zero without design trials. Diameter/k are initial estimates,
+not automatically measured cell size. The editable threshold is for manual counting;
+automatic refinement fits its own seed. Show mean, median, population SD, and review notices
+above a native collapsible trial table. Selection restores each image's saved trials;
+applying another trial detects fresh centers and marks that saved result manual.
 
-**Owner.** [WORKFLOW_MODES.md](WORKFLOW_MODES.md), `src/counter_controller.ts`,
-`src/index.html`, and `src/image_workspace.ts`
+**Owner.** `src/refine_image.ts`, `src/counter_controller.ts`, `src/index.html`,
+`src/comparison_panel.ts`, and [refinement_workflow.md](active_plans/reports/refinement_workflow.md)
 
 ### Provisional per-image automatic threshold
 
-**Decision.** Use binary Otsu on each image's positive DoG response for automatic
-counting. Native and Wasm callers share `PreparedImage` and the numerical response.
-Every automatic result includes `provisional_calibration`.
+**Decision.** Use binary Otsu on each image's positive DoG response to seed the required
+refinement. Native and Wasm callers share `PreparedImage` and the numerical response.
+No-signal results retain seed provenance. Completed refinement uses `dog_ccd_median`,
+version `dog-refinement-1`, and `provisional_refinement`.
 
 **Why.** Binary Otsu ranks first among the three frozen automatic candidates on eight
 calibration images. Its mean outside-interval loss is 2.524% with three images outside,
@@ -237,9 +240,10 @@ supports a provisional implementation, not a general accuracy claim.
 
 **Consequence.** Threshold selection receives pixels and diameter/k, without filenames,
 reference totals, or a batch-derived cutoff. Diameter 10 px and k 4 are starting values;
-Advanced edits affect future runs. Histogram selection, native center detection,
+Visible diameter/k edits affect future seeds. Histogram selection, native center detection,
 preview masks, and reported cutoff share one numerical contract. Research alternatives
-and negative results remain reproducible without becoming extra beginner controls.
+and negative results remain reproducible. The eight-image experiment calibrates the seed
+only; it does not validate the combined seed-plus-refinement pipeline.
 ImageJ totals are uncertain calibration evidence, not biological truth or independent
 validation. The complete method and evidence belong in
 [AUTOMATIC_DETECTOR_EXPERIMENT.md](AUTOMATIC_DETECTOR_EXPERIMENT.md).
@@ -250,7 +254,9 @@ validation. The complete method and evidence belong in
 ### Saved analysis owns result provenance
 
 **Decision.** Store centers with typed `SavedAnalysis`: actual settings, automatic/manual
-mode, method, version, review reasons, and no-signal state. Display, derived previews,
+mode, method, version, review reasons, and no-signal state. Optional per-image refinement
+metadata retains starting settings, seed method, requested budget, each trial's settings,
+kind, count or error, elapsed time, and representative/selected indices. Display, derived previews,
 and CSV read this saved record rather than current editable controls.
 
 **Why.** Per-image thresholds and selected-image manual research make global controls
@@ -261,7 +267,35 @@ previous counts without presenting them as a successful new analysis.
 previous centers and metadata on failure/cancellation, alongside the new attempt status
 and error. Export every selected row, including waiting/failed/cancelled rows, through
 the same one-file or partial CSV path. CSV records provenance for each saved count;
-it is not a complete session reload format.
+it is not a complete session reload format. CSV appends requested/successful/failed run
+counts, seed method/threshold, mean, median, population SD, minimum, and maximum.
+Retain only final centers, not a center array per trial. Editing controls never relabels
+saved analyses. Flag `refinement_sensitive` when the successful count range exceeds 10%
+of the chosen count; this is a review policy, not a validated accuracy threshold.
 
 **Owner.** `src/analysis_types.ts`, `src/counter_controller.ts`,
 `src/image_workspace.ts`, and `src/worker.ts`
+
+### Descriptive saved-object morphology
+
+**Decision.** Measure all 8-connected components of the actual final DoG threshold mask
+once before saving each successful analysis, including manual trial application. Keep the
+legacy eight-value primitive and use a separate 14-value detailed record with mean squared
+radius, exclusive bounds, edge flags, and sparse exact center membership. Save typed object
+measurements with the count and its provenance as one complete snapshot.
+
+**Why.** Researchers need descriptive area, roundness, and moment-related information
+without changing the existing center detector or mislabeling clusters as individual cells.
+
+**Consequence.** The visible mean, median, population SD, and per-metric finite n use
+single-center components away from image edges as an explicitly approximate population.
+All-object/category counts and full object CSV retain excluded objects; cluster areas
+remain whole. Binary mean squared radius is the covariance trace, distinct from inertia
+ratio and the historical intensity-weighted Appion moment. Real raw-image challenge crops
+show bounds and accepted centers and navigate the viewer without new detection. Geometry
+neither splits boundaries nor rejects shapes. Failure or cancellation preserves the prior
+complete analysis. Current biological accuracy remains unvalidated.
+
+**Owner.** [BLOB_MEASUREMENTS.md](BLOB_MEASUREMENTS.md),
+[blob_features.rs](../rust/src/blob_features.rs), and
+[morphology_statistics.ts](../src/morphology_statistics.ts).

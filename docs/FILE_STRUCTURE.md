@@ -4,7 +4,7 @@
 
 | Path | Purpose |
 | --- | --- |
-| [README.md](../README.md) | Student-facing browser start and developer entry commands. |
+| [README.md](../README.md) | Graduate biology researcher browser start and developer entry commands. |
 | [src/](../src/) | TypeScript UI, worker transport, HTML/CSS, and local artwork/example. |
 | [rust/](../rust/) | Portable detector library, Wasm bindings, and native experiment probes. |
 | [IMAGES/](../IMAGES/) | Original fluorescence calibration images. |
@@ -20,10 +20,22 @@
 ## Source organization
 
 [main.ts](../src/main.ts) wires events to [counter_controller.ts](../src/counter_controller.ts).
-[analysis_types.ts](../src/analysis_types.ts) owns typed worker and saved-analysis contracts.
+[refine_image.ts](../src/refine_image.ts) owns the shared per-image seed/design/final-rerun
+operation. [analysis_types.ts](../src/analysis_types.ts) owns typed worker and saved-analysis
+contracts, including metadata-only `RefinementRun` and per-image `Refinement` records.
 [image_workspace.ts](../src/image_workspace.ts) and [image_viewer.ts](../src/image_viewer.ts)
 own the ledger, export, and inspection; [comparison_panel.ts](../src/comparison_panel.ts)
-owns advanced research feedback. [CODE_ARCHITECTURE.md](CODE_ARCHITECTURE.md) maps the rest.
+owns refinement feedback and restoration of saved per-image trials. [CODE_ARCHITECTURE.md](CODE_ARCHITECTURE.md) maps the rest.
+
+Selected-image scientific insights live in
+[morphology_types.ts](../src/morphology_types.ts),
+[morphology_statistics.ts](../src/morphology_statistics.ts), and
+[morphology_panel.ts](../src/morphology_panel.ts). The feature stylesheet
+[morphology.css](../src/morphology.css) is copied into the static build.
+[csv_export.ts](../src/csv_export.ts) supplies common CSV download handling.
+[BLOB_MEASUREMENTS.md](BLOB_MEASUREMENTS.md) defines mask geometry, sample populations,
+and export fields. [morphology_insights.md](active_plans/reports/morphology_insights.md)
+tracks implementation ownership and evidence for the current change.
 
 The shared numerical path lives in [rust/src/](../rust/src/). Its prepared image and
 automatic threshold modules serve native research and Wasm. Native probes live in

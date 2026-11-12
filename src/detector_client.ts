@@ -3,6 +3,8 @@ import type {
   AutomaticWorkerRequest,
   DetectWorkerReply,
   DetectWorkerRequest,
+  MeasureWorkerReply,
+  MeasureWorkerRequest,
 } from "./analysis_types.js";
 import type { DetectorSettings } from "./experiment_design.js";
 
@@ -51,6 +53,13 @@ export function createDetectorClient(): {
     height: number,
     input: Pick<DetectorSettings, "diameter" | "k">,
   ) => Promise<AutomaticWorkerReply>;
+  processMeasurements: (
+    id: number,
+    width: number,
+    height: number,
+    input: DetectorSettings,
+    centers: Float32Array,
+  ) => Promise<MeasureWorkerReply>;
 } {
   let worker: Worker | undefined;
   let pendingAbort: ((reason: Error) => void) | undefined;
@@ -67,15 +76,18 @@ export function createDetectorClient(): {
 
   function processRequest(request: AutomaticWorkerRequest): Promise<AutomaticWorkerReply>;
   function processRequest(request: DetectWorkerRequest): Promise<DetectWorkerReply>;
+  function processRequest(request: MeasureWorkerRequest): Promise<MeasureWorkerReply>;
   function processRequest(
-    request: AutomaticWorkerRequest | DetectWorkerRequest,
-  ): Promise<AutomaticWorkerReply | DetectWorkerReply> {
+    request: AutomaticWorkerRequest | DetectWorkerRequest | MeasureWorkerRequest,
+  ): Promise<AutomaticWorkerReply | DetectWorkerReply | MeasureWorkerReply> {
     const currentWorker = worker;
     if (!currentWorker) return Promise.reject(new Error("Detector worker is not running."));
     const activeWorker: Worker = currentWorker;
     if (pendingAbort) return Promise.reject(new Error("Detector worker is already processing."));
     return new Promise(function waitForResult(resolve, reject): void {
-      function receive(event: MessageEvent<AutomaticWorkerReply | DetectWorkerReply>): void {
+      function receive(
+        event: MessageEvent<AutomaticWorkerReply | DetectWorkerReply | MeasureWorkerReply>,
+      ): void {
         if (event.data.id !== request.id || event.data.kind !== request.kind) return;
         cleanup();
         resolve(event.data);
@@ -98,7 +110,13 @@ export function createDetectorClient(): {
       activeWorker.addEventListener("messageerror", failed);
       pendingAbort = abort;
       try {
-        activeWorker.postMessage(request, request.rgba ? [request.rgba] : []);
+        const transfers =
+          request.kind === "measure"
+            ? [request.centers.buffer]
+            : request.rgba
+              ? [request.rgba]
+              : [];
+        activeWorker.postMessage(request, transfers);
       } catch (error: unknown) {
         abort(error instanceof Error ? error : new Error(String(error)));
       }
@@ -135,6 +153,18 @@ export function createDetectorClient(): {
         height,
         diameter: input.diameter,
         k: input.k,
+      });
+    },
+    processMeasurements(id, width, height, input, centers): Promise<MeasureWorkerReply> {
+      return processRequest({
+        kind: "measure",
+        id,
+        width,
+        height,
+        diameter: input.diameter,
+        k: input.k,
+        threshold: input.threshold,
+        centers: centers.slice(),
       });
     },
   };

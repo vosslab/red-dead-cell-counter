@@ -1,4 +1,22 @@
-import type { DetectorSettings } from "./experiment_design.js";
+import type { DesignPoint, DetectorSettings } from "./experiment_design.js";
+import type { MorphologyMeasurements } from "./morphology_types.js";
+
+export type RefinementRun = {
+  settings: Readonly<DetectorSettings>;
+  kind: DesignPoint["kind"];
+  count?: number;
+  elapsed: number;
+  error?: string;
+};
+
+export type Refinement = {
+  startingSettings: Readonly<DetectorSettings>;
+  seedMethod: string;
+  requestedRuns: number;
+  runs: RefinementRun[];
+  representativeIndex: number;
+  selectedIndex: number;
+};
 
 export type SavedAnalysis = Readonly<{
   settings: Readonly<DetectorSettings>;
@@ -8,6 +26,8 @@ export type SavedAnalysis = Readonly<{
   reviewReasons: readonly string[];
   // Native no-signal results still supply the actual valid processing cutoff.
   noSignal: boolean;
+  refinement?: Refinement;
+  morphology?: MorphologyMeasurements;
 }>;
 
 type ImageRequest = { id: number; width: number; height: number };
@@ -27,8 +47,15 @@ export type PreviewWorkerRequest = ImageRequest &
 
 export type BlobWorkerRequest = ImageRequest & { kind: "blobs"; mask: ArrayBuffer };
 
+export type MeasureWorkerRequest = ImageRequest &
+  DetectorSettings & { kind: "measure"; centers: Float32Array };
+
 export type WorkerRequest =
-  AutomaticWorkerRequest | DetectWorkerRequest | PreviewWorkerRequest | BlobWorkerRequest;
+  | AutomaticWorkerRequest
+  | DetectWorkerRequest
+  | PreviewWorkerRequest
+  | BlobWorkerRequest
+  | MeasureWorkerRequest;
 
 type WorkerFailure<Kind extends WorkerRequest["kind"]> = {
   id: number;
@@ -63,5 +90,13 @@ export type PreviewWorkerReply =
 export type BlobWorkerReply =
   { id: number; kind: "blobs"; ok: true; blobFeatures: Float64Array } | WorkerFailure<"blobs">;
 
+export type MeasureWorkerReply =
+  | { id: number; kind: "measure"; ok: true; morphology: MorphologyMeasurements }
+  | WorkerFailure<"measure">;
+
 export type WorkerReply =
-  AutomaticWorkerReply | DetectWorkerReply | PreviewWorkerReply | BlobWorkerReply;
+  | AutomaticWorkerReply
+  | DetectWorkerReply
+  | PreviewWorkerReply
+  | BlobWorkerReply
+  | MeasureWorkerReply;

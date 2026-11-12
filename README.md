@@ -1,73 +1,108 @@
 # Red Dead Cell Counter
 
-Count red-stained cells in your browser, inspect the detection markers, and download a spreadsheet. Built for biology students and researchers, with automatic image-by-image thresholds and a Wild West saloon.
+Refine processing parameters, inspect detections, and count red PI-positive objects in microscopy images. Built for biology researchers, with image-by-image parameter trials in a Wild West saloon.
 
 **[Step into the saloon: open the tool](https://vosslab.github.io/red-dead-cell-counter/)**
 
 No installation or account needed. Your images stay on your device. Bring one JPEG
 or PNG microscope image, or a whole image set.
 
-**Automatic counts are provisional.** Inspect the markers before using a count.
-The eight-image calibration still needs independent biological validation; see
+**Parameter refinement is part of every normal count.** Each image gets its own
+starting threshold and diameter/k/threshold trials. The tool applies a tested run
+closest to the median count; inspect its markers and refine again if needed.
+The combined refinement pipeline has no independent biological validation. The older
+eight-image study covers its Otsu starting-threshold method only; see
 [docs/AUTOMATIC_DETECTOR_EXPERIMENT.md](docs/AUTOMATIC_DETECTOR_EXPERIMENT.md).
 
 ## From microscope to bounty board
 
-Choose your images, count the red objects, then check the evidence before exporting.
-The saloon, wanted poster, and wooden bounty board keep the lab work on the frontier.
+Choose images, refine their processing parameters, inspect the detected centers,
+then save the ledger. The saloon, wanted poster, and wooden bounty board keep the
+lab work on the frontier.
 
 <!-- screenshots:begin (managed by screenshot-docs) -->
-
 ### 1. Choose your images
 
-[<img src="docs/screenshots/workflow_choose.webp" width="520" alt="Western saloon entrance with Choose images and Try an example actions">](docs/screenshots/workflow_choose.webp)
+<a href="docs/screenshots/workflow_choose.webp"><img src="docs/screenshots/workflow_choose.webp" width="520" alt="Western saloon entrance with Choose images and Try an example actions"></a>
 
-Choose your JPEG/PNG files, or select **Try an example** to count a real field
-immediately and skip to inspection.
+Choose your JPEG/PNG files, or select **Try an example** to refine a real field
+immediately and continue to inspection.
 
-### 2. Count the selected set
+### 2. Refine and count
 
-[<img src="docs/screenshots/workflow_count.webp" width="520" alt="Two images selected with Count cells ready and Download CSV unavailable">](docs/screenshots/workflow_count.webp)
+<a href="docs/screenshots/workflow_count.webp"><img src="docs/screenshots/workflow_count.webp" width="520" alt="Two images selected with four visible parameter controls and Refine and count ready"></a>
 
-This example has two files selected. For your own file or set, select **Count cells**;
-each image receives its own automatic cutoff.
+Review the starting diameter and k, then select **Refine and count**. Each image
+gets its own threshold estimate and **21 parameter trials** by default.
 
 ### 3. Inspect, then save
 
-[<img src="docs/screenshots/workflow_inspect.webp" width="520" alt="A501 result showing 291 counted centers, review notice, image tools, and green markers">](docs/screenshots/workflow_inspect.webp)
+<a href="docs/screenshots/workflow_inspect.webp"><img src="docs/screenshots/workflow_inspect.webp" width="520" alt="Refined A501 result showing 272 detected centers, saved trial settings, review notice, and green markers"></a>
 
-Check the green center markers before **Download CSV**. This A501 example shows
-**291** detections at cutoff **0.26860**; your images will have their own results.
+Check the green markers before **Download CSV**. This captured A501 result has
+**272** detections at diameter **10.00 px**, k **2.65**, threshold **0.26860**.
+This provisional parameter-sensitivity result represents the settings explored;
+it does not establish accuracy.
+
+## Measure objects and inspect clusters
+
+<a href="docs/screenshots/object_measurements.webp"><img src="docs/screenshots/object_measurements.webp" width="360" alt="A501 paper ledger with measured object statistics, explicit sampling population, cohorts, and object CSV download"></a>
+
+The paper ledger summarizes area, equivalent diameter, roundness, inertia ratio,
+and mean squared radius for **single-center objects away from image edges**.
+These threshold-object shapes approximate cells; they are not individually
+segmented cell boundaries. Mean, median, SD, and finite sample size describe this
+population, while the cohort counts include all connected objects. In this A501
+result, **182** interior single-center objects have mean area **75.78 px&sup2;**,
+mean roundness **0.94**, and mean squared radius **12.53 px&sup2;**.
+
+<a href="docs/screenshots/challenge_clusters.webp"><img src="docs/screenshots/challenge_clusters.webp" width="520" alt="Real H501 challenge crops showing a connected object with several accepted centers and a large single-center object"></a>
+
+**Challenge regions** show real raw-image crops with gold object bounds and green
+accepted centers. **Inspect this region** moves the main viewer to that object
+without recounting. This H501 capture uses a separate manual count at diameter
+10 px, k 4, and threshold 0.10000: **3,021** accepted centers. The illustrated
+cluster retains **7 centers** in one object; it is not the default refined result.
+**Download object measurements CSV** saves every connected object with its geometry,
+coordinates, edge flag, accepted-center indices, and actual settings.
 
 <!-- screenshots:end -->
 
-## Try your first count
+## Refine your first image set
 
-1. [Open the tool](https://vosslab.github.io/red-dead-cell-counter/) and select
-   **Try an example**. The real A501 image loads and counts immediately.
-2. Inspect the green markers with **Zoom**, **Actual pixels**, and drag-to-pan.
-   **Fit image** restores the overview.
-3. Select **Download CSV** to save the count and the settings that produced it.
+1. [Open the tool](https://vosslab.github.io/red-dead-cell-counter/) and choose one
+   or more JPEG/PNG images. **Try an example** loads and refines the real A501 image.
+2. Review the visible diameter and k starting estimates, then select **Refine and count**.
+   Each chosen image runs independently through threshold estimation and parameter trials.
+3. Read the trial statistics and inspect the green markers in **Raw**, **DoG**, and
+   **Threshold**. Use **Actual pixels**, **Zoom**, and drag-to-pan to check faint
+   objects, touching cells, and debris. **Fit image** restores the overview.
+4. Adjust the starting estimates and select **Refine selected image** where needed.
+   Select **Download CSV** after reviewing the results.
 
-For your own files, select **Choose images**, open one or more JPEG/PNG images, then
-select **Count cells**. Each image gets its own threshold. Select a filename on the
-bounty board to inspect that image's saved result.
+The response threshold box is for **Count once with these settings**, which directly
+runs the three entered settings on the selected image. Automatic refinement computes
+its own starting threshold. Diameter and k are starting estimates, not guaranteed
+automatic measurements of cell size.
 
-Follow [docs/WALKTHROUGH.md](docs/WALKTHROUGH.md) for a closer look at each screen,
-the Raw/DoG/Threshold views, and a short touching-cells challenge.
+Follow [docs/WALKTHROUGH.md](docs/WALKTHROUGH.md) for the visual workflow and
+[docs/USAGE.md](docs/USAGE.md) for control ranges and saved results.
 
 ## What you can do
 
-- **Count a field or an image set.** The same actions work for one image or many.
-- **Inspect each pick.** Green circles mark counted centers; white threshold regions
+- **Refine a field or image set.** Every image receives its own parameter exploration.
+- **Inspect trial sensitivity.** Visible mean, median, SD, and count range summarize the
+  tested settings; expand the trial table to inspect or apply a particular run.
+- **Check each detection.** Green circles mark counted centers; white threshold regions
   show candidate pixels and can contain several centers.
 - **Keep partial results.** Cancellation preserves completed and previously saved
-  analyses. CSV includes attempt status, failures, review reasons, and actual settings.
-- **Explore settings.** Optional **Advanced settings** offers manual analysis and
-  15-100 comparison runs on the selected image.
+  analyses. CSV records attempt status, failures, review reasons, and actual settings.
 
-Choosing a new file set replaces the current ledger. Download your results first.
-Counts and overlays stay in memory for the current page.
+Selecting a ledger row restores that image's saved settings and refinement feedback.
+Editing inputs leaves saved counts attached to the settings actually used.
+Download before choosing a new file set or leaving the page. Counts, overlays, and
+trial details stay in page memory. The count CSV saves totals and summary provenance;
+the separate object CSV saves measured connected objects and their accepted-center indices.
 
 ## What does red mean?
 
@@ -77,16 +112,16 @@ biological conclusion. A red-channel image alone gives neither a total-cell coun
 a percentage of viable cells. See
 [Thermo Fisher's PI overview](https://www.thermofisher.com/us/en/home/life-science/cell-analysis/fluorophores/propidium-iodide.html).
 
-## Follow your curiosity
+## Workflow and method references
 
-- [docs/WALKTHROUGH.md](docs/WALKTHROUGH.md): take a guided first count, inspect, and export.
-- [docs/USAGE.md](docs/USAGE.md): look up settings, CSV fields, recovery, and local setup.
-- [docs/WORKFLOW_MODES.md](docs/WORKFLOW_MODES.md): understand one-image and batch behavior.
-- [docs/AUTOMATIC_DETECTOR_EXPERIMENT.md](docs/AUTOMATIC_DETECTOR_EXPERIMENT.md): read method evidence and limitations.
-- [docs/EXPERIMENT_DESIGN.md](docs/EXPERIMENT_DESIGN.md): understand Advanced comparison runs.
-- [docs/VERIFICATION.md](docs/VERIFICATION.md): separate engineering checks from biological validation.
+- [docs/WALKTHROUGH.md](docs/WALKTHROUGH.md): refine, inspect, and export an image set.
+- [docs/USAGE.md](docs/USAGE.md): settings, CSV fields, recovery, and local setup.
+- [docs/WORKFLOW_MODES.md](docs/WORKFLOW_MODES.md): one-image and batch processing scope.
+- [docs/EXPERIMENT_DESIGN.md](docs/EXPERIMENT_DESIGN.md): parameter-trial design and median selection.
+- [docs/AUTOMATIC_DETECTOR_EXPERIMENT.md](docs/AUTOMATIC_DETECTOR_EXPERIMENT.md): starting-threshold evidence and limitations.
+- [docs/VERIFICATION.md](docs/VERIFICATION.md): engineering checks and validation boundaries.
 
-## For coders and curious students
+## For developers
 
 The browser runs a TypeScript interface with Rust/Wasm image processing. To build
 locally, install Node.js 26 with npm, current stable Rust with Cargo/rustup,
