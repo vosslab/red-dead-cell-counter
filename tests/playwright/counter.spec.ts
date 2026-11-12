@@ -178,7 +178,7 @@ test("comparison applies one real-image setting to a subsequent batch CSV", asyn
 
   await page.getByRole("button", { name: "Compare settings" }).click();
   const comparisonRows = page.locator("#comparison-rows tr");
-  await expect(comparisonRows).toHaveCount(27, { timeout: 80_000 });
+  await expect(comparisonRows).toHaveCount(15, { timeout: 80_000 });
   const appliedRow = comparisonRows
     .filter({ has: page.getByRole("button", { name: "Apply" }) })
     .first();
@@ -216,7 +216,7 @@ test("auto-tune compares a real crop before analyzing its batch", async ({ page 
   ]);
   await page.getByRole("button", { name: "Auto-tune and analyze batch" }).click();
   await expect(page.getByRole("status")).toHaveText("Analysis complete.", { timeout: 80_000 });
-  await expect(page.locator("#comparison-rows tr")).toHaveCount(27);
+  await expect(page.locator("#comparison-rows tr")).toHaveCount(15);
   await expect(page.locator("#rows tr .ok")).toHaveCount(2);
 });
 
@@ -341,7 +341,7 @@ test("comparison reports progress, explains its recommendation, and confirms app
   await page.getByRole("button", { name: "Compare settings", exact: true }).click();
   await expect(page.locator("#comparison-progress")).toBeVisible();
   await expect(page.locator("#comparison-status")).toHaveAttribute("aria-live", "polite");
-  await expect(page.locator("#comparison-progress")).toHaveAttribute("value", "27", {
+  await expect(page.locator("#comparison-progress")).toHaveAttribute("value", "15", {
     timeout: 80_000,
   });
   await expect(page.locator("#comparison-applied")).toContainText("Analyze images");
@@ -392,7 +392,27 @@ test("cancelled comparison preserves partial progress rather than claiming compl
   await expect(page.locator("#comparison-status")).toContainText(/cancelled/i);
   const completed = Number(await page.locator("#comparison-progress").getAttribute("value"));
   expect(completed).toBeGreaterThanOrEqual(2);
-  expect(completed).toBeLessThan(27);
+  expect(completed).toBeLessThan(15);
   await expect(page.locator("#comparison-rows tr")).toHaveCount(completed);
   await expect(page.getByRole("button", { name: "Compare settings", exact: true })).toBeEnabled();
+});
+
+test("DoE runs retain small positive thresholds", async ({ page }) => {
+  await open(page);
+  const crop = await realImageCrop(page);
+  await page.getByLabel("Choose images").setInputFiles(crop);
+  await page.getByLabel("Response threshold").fill("0.0001");
+  await page.getByRole("button", { name: "Compare settings", exact: true }).click();
+  await expect(page.locator("#comparison-status")).toContainText("15 successful", {
+    timeout: 80_000,
+  });
+  const thresholds = (
+    await page.locator("#comparison-rows tr td:nth-child(3)").allTextContents()
+  ).map(Number);
+  expect(thresholds).toHaveLength(15);
+  expect(Math.min(...thresholds)).toBeGreaterThan(0);
+  expect(Math.max(...thresholds)).toBeLessThan(0.001);
+  await expect(page.locator("#comparison-rows")).toContainText("Center");
+  await expect(page.locator("#comparison-rows")).toContainText("Factorial");
+  await expect(page.locator("#comparison-rows")).toContainText("Axial");
 });

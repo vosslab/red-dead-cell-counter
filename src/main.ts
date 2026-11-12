@@ -1,6 +1,7 @@
-import { chooseStable } from "./choose_stable.js";
+import { chooseRepresentative } from "./choose_representative.js";
+import { comparisonDesign, type DesignPoint, type DetectorSettings } from "./experiment_design.js";
 
-type Settings = { diameter: number; k: number; threshold: number };
+type Settings = DetectorSettings;
 type ImageResult = {
   file: File;
   width: number;
@@ -10,7 +11,13 @@ type ImageResult = {
   error?: string;
 };
 type WorkerReply = { id: number; centers?: Float32Array; error?: string };
-type Comparison = { settings: Settings; centers?: Float32Array; elapsed: number; error?: string };
+type Comparison = {
+  settings: Settings;
+  kind: DesignPoint["kind"];
+  centers?: Float32Array;
+  elapsed: number;
+  error?: string;
+};
 
 const elements = {
   images: document.querySelector<HTMLInputElement>("#images")!,
@@ -113,7 +120,7 @@ function setComparisonStatus(message: string): void {
 }
 function clearComparisonFeedback(message: string): void {
   elements.comparisonSummary.textContent =
-    "Select an image, then compare nearby cell-size, k, and threshold settings. Count stability is a tuning heuristic, not an accuracy measurement.";
+    "Select an image, then compare a compact central-composite design of cell-size, k, and threshold settings.";
   elements.comparisonRecommendation.textContent = "";
   elements.comparisonApplied.textContent = "";
   setComparisonProgress(0, 0);
@@ -181,6 +188,7 @@ function drawComparisons(): void {
       cell(showNumber(comparison.settings.threshold)),
       cell(count),
       cell(comparison.error ?? elapsed, comparison.error ? "error" : undefined),
+      cell(comparison.kind),
     );
     const action = document.createElement("td");
     action.className = "comparison-decision";
@@ -462,31 +470,6 @@ async function analyzeSelected(): Promise<void> {
     }) === false;
   setStatus(stopped ? "Batch cancelled." : "Selected image analysis complete.");
 }
-function comparisonSettings(input: Settings): Settings[] {
-  const diameters = [
-    ...new Set(
-      [input.diameter * 0.75, input.diameter, input.diameter * 1.25].map(function round(
-        value: number,
-      ): number {
-        return Math.min(200, Math.max(2, Math.round(value)));
-      }),
-    ),
-  ];
-  const thresholds = [
-    ...new Set(
-      [input.threshold * 0.5, input.threshold, input.threshold * 2].filter(function valid(
-        value: number,
-      ): boolean {
-        return Number.isFinite(value) && value > 0;
-      }),
-    ),
-  ];
-  const candidates: Settings[] = [];
-  for (const diameter of diameters)
-    for (const k of [3, 4, 6])
-      for (const threshold of thresholds) candidates.push({ diameter, k, threshold });
-  return candidates;
-}
 async function compareSettings(): Promise<boolean> {
   const input = settings();
   const result = results[selected];
@@ -498,12 +481,27 @@ async function compareSettings(): Promise<boolean> {
     setStatus("Use a diameter of 2-200 px, k of 1.1-8, and a positive threshold.");
     return false;
   }
-  const candidates = comparisonSettings(input);
+  let candidates: DesignPoint[];
+  try {
+    candidates = comparisonDesign(input);
+  } catch (error: unknown) {
+    const message =
+      error instanceof Error ? error.message : "Comparison design could not be prepared.";
+    setComparisonStatus(message);
+    setStatus(message);
+    return false;
+  }
   comparisons = [];
   recommended = undefined;
   appliedComparison = undefined;
   comparisonFile = result.file;
-  elements.comparisonSummary.textContent = `Testing ${candidates.length} nearby settings for ${result.file.name}. The recommendation favors a stable count across neighboring settings, not known biological accuracy.`;
+  function range(axis: keyof Settings, suffix = ""): string {
+    const values = candidates.map(function value(candidate: DesignPoint): number {
+      return candidate[axis];
+    });
+    return `${showNumber(Math.min(...values))}–${showNumber(Math.max(...values))}${suffix}`;
+  }
+  elements.comparisonSummary.textContent = `Testing a 15-point central-composite design for ${result.file.name}: 1 center, 8 factorial, and 6 axial points. Values are log-spaced from diameter ${range("diameter", " px")}, k ${range("k")}, and threshold ${range("threshold")}.`;
   elements.comparisonRecommendation.textContent = "";
   elements.comparisonApplied.textContent = "";
   setComparisonProgress(0, candidates.length);
@@ -542,6 +540,7 @@ async function compareSettings(): Promise<boolean> {
         );
         comparisons.push({
           settings: candidate,
+          kind: candidate.kind,
           centers: reply.centers,
           error: reply.error,
           elapsed: performance.now() - started,
@@ -550,6 +549,7 @@ async function compareSettings(): Promise<boolean> {
         if (!stopped)
           comparisons.push({
             settings: candidate,
+            kind: candidate.kind,
             error: error instanceof Error ? error.message : "Comparison failed.",
             elapsed: performance.now() - started,
           });
@@ -611,7 +611,7 @@ async function compareSettings(): Promise<boolean> {
     setStatus(`No comparison settings completed for ${result.file.name}.`);
     return false;
   }
-  const choice = chooseStable(
+  const choice = chooseRepresentative(
     successful.map(function run(comparison: Comparison): {
       diameter: number;
       k: number;
@@ -633,29 +633,15 @@ async function compareSettings(): Promise<boolean> {
     return (comparison.centers?.length ?? 0) / 2;
   });
   const countRange = `${Math.min(...counts)}–${Math.max(...counts)}`;
-  function axisRange(axis: keyof Settings): string {
-    const nearbyCounts = successful
-      .filter(function neighboring(comparison: Comparison): boolean {
-        return (Object.keys(comparison.settings) as (keyof Settings)[]).every(function sameSetting(
-          key: keyof Settings,
-        ): boolean {
-          return key === axis || comparison.settings[key] === recommendation.settings[key];
-        });
-      })
-      .map(function count(comparison: Comparison): number {
-        return (comparison.centers?.length ?? 0) / 2;
-      });
-    return `${Math.min(...nearbyCounts)}–${Math.max(...nearbyCounts)}`;
-  }
   const statistics = countStatisticsText(counts);
-  elements.comparisonRecommendation.textContent = `Recommended: ${(recommendation.centers?.length ?? 0) / 2} cells with ${comparisonSettingsText(recommendation.settings)}. With the other two settings fixed, nearby counts range from ${axisRange("diameter")} across diameter, ${axisRange("k")} across k, and ${axisRange("threshold")} across threshold. This is a stability signal, not an accuracy measurement.`;
+  elements.comparisonRecommendation.textContent = `Representative median run: ${(recommendation.centers?.length ?? 0) / 2} cells with ${comparisonSettingsText(recommendation.settings)}. This is an actual tested setting whose count is closest to the median of the successful design runs. These statistics describe sensitivity to settings.`;
   setComparisonStatus(
     `Comparison finished: ${successful.length} successful and ${comparisons.length - successful.length} failed in ${formatDuration(performance.now() - comparisonStarted)}. Counts ranged from ${countRange}. ${statistics} These statistics describe sensitivity to settings.`,
   );
   drawComparisons();
   if (recommended) await applyComparisonResult(recommended);
   setStatus(
-    `Most stable nearby count applied after comparing ${comparisons.length} settings for ${result.file.name}.`,
+    `Representative median run applied after comparing ${comparisons.length} settings for ${result.file.name}.`,
   );
   return true;
 }
