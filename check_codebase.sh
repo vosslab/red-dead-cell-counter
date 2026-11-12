@@ -56,6 +56,10 @@ if [ ! -f package-lock.json ]; then
 	echo "WARN: package-lock.json missing; npm install will not produce a reproducible install." >&2
 fi
 
+if [ ! -f rust/pkg/cell_detector.d.ts ]; then
+	wasm-pack build rust --target web --release --out-dir pkg
+fi
+
 echo "==> typecheck"
 npx tsc --noEmit -p tsconfig.json
 

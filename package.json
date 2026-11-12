@@ -12,21 +12,24 @@
 		"test:playwright": "npx playwright test"
 	},
 	"devDependencies": {
-		"@types/node": ">=26.0.1",
-		"esbuild": ">=0.28.1",
-		"typescript": ">=6.0.3",
-		"eslint": ">=10.6.0",
 		"@eslint/js": ">=10.0.1",
-		"typescript-eslint": ">=8.62.1",
-		"globals": ">=17.7.0",
-		"playwright": ">=1.61.1",
-		"prettier": ">=3.9.4",
-		"tsx": ">=4.22.4",
-		"@playwright/test": ">=1.61.1"
+		"@playwright/test": ">=1.65.0",
+		"@types/node": ">=26.6.6",
+		"@typescript/native": "npm:typescript@>=7.0.2",
+		"esbuild": ">=0.28.2",
+		"eslint": ">=10.14.0",
+		"globals": ">=17.14.0",
+		"playwright": ">=1.65.0",
+		"prettier": ">=3.10.0",
+		"tsx": ">=4.23.15",
+		"typescript": "npm:@typescript/typescript6@^6.0.2",
+		"typescript-eslint": ">=8.72.2"
 	},
 	"allowScripts": {
-		"esbuild@0.28.1": true,
-		"fsevents@2.3.2": true,
-		"fsevents@2.3.3": true
+		"fsevents": true,
+		"esbuild": true
+	},
+	"overrides": {
+		"minimatch": ">=11.0.8"
 	}
 }

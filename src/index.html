@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PI Dead Cell Counter</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <p class="eyebrow">PROPIDIUM IODIDE ANALYSIS</p>
+        <h1>Dead cell counter</h1>
+        <p>Count red PI-positive cells locally in your browser.</p>
+      </header>
+      <section class="controls" aria-label="Analysis controls">
+        <label class="file-picker" for="images"
+          >Choose images<input id="images" type="file" accept="image/jpeg,image/png" multiple
+        /></label>
+        <label
+          >Cell diameter (px)<input
+            id="diameter"
+            type="number"
+            min="2"
+            max="200"
+            step="1"
+            value="10"
+        /></label>
+        <label>DoG k<input id="k" type="number" min="1.1" max="8" step="0.1" value="4" /></label>
+        <label
+          >Response threshold<input
+            id="threshold"
+            type="number"
+            min="0.001"
+            step="0.005"
+            value="0.10"
+        /></label>
+        <button id="analyze" type="button">Analyze images</button>
+        <button id="analyze-selected" type="button">Analyze selected image</button>
+        <button id="compare" type="button">Compare settings</button>
+        <button id="auto-tune-batch" type="button">Auto-tune and analyze batch</button>
+        <button id="cancel" type="button" disabled>Cancel</button>
+        <button id="download" type="button" disabled>Download CSV</button>
+      </section>
+      <p id="status" role="status">Choose one or more JPEG or PNG images.</p>
+      <section class="workspace">
+        <div class="image-panel">
+          <div class="image-tools">
+            <label><input id="markers" type="checkbox" checked /> Show detections</label
+            ><label
+              >Zoom <input id="zoom" type="range" min="25" max="200" value="100" />
+              <span id="zoom-value">100%</span></label
+            >
+          </div>
+          <div id="canvas-wrap">
+            <canvas id="image" aria-label="Selected image with detected cells"></canvas>
+          </div>
+        </div>
+        <div class="results-panel">
+          <h2>Images</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Image</th>
+                <th>Count</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+      </section>
+      <section id="comparison" class="comparison" aria-labelledby="comparison-heading">
+        <h2 id="comparison-heading">Setting comparison</h2>
+        <p id="comparison-summary">
+          Select an image, then compare 27 cell-size, k, and threshold combinations. Count stability
+          is a tuning heuristic, not an accuracy measurement.
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>Diameter</th>
+              <th>k</th>
+              <th>Threshold</th>
+              <th>Count</th>
+              <th>Time</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="comparison-rows"></tbody>
+        </table>
+      </section>
+    </main>
+    <script type="module" src="main.js"></script>
+  </body>
+</html>

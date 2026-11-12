@@ -22,3 +22,10 @@ _temp*.?*
 # ADD YOUR CUSTOM IGNORES BELOW
 # Propagation preserves this section.
 # Template-only ignores.
+
+/rust/pkg/
+
+/dist/
+/test-results/
+/playwright-report/
+**/__pycache__/

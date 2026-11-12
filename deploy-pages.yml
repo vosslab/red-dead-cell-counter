@@ -23,7 +23,9 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - run: npm install
+      - run: rustup target add wasm32-unknown-unknown
+      - run: cargo install wasm-pack --locked
+      - run: npm ci
       - run: ./build_github_pages.sh
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5

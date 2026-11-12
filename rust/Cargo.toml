@@ -1,0 +1,12 @@
+[package]
+name = "cell_detector"
+version = "26.11.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+image = { version = "*", default-features = false }
+imageproc = { version = "*", default-features = false }
+wasm-bindgen = "*"

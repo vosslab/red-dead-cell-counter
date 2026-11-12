@@ -9,3 +9,6 @@ tree-sitter  # Rust parsing for the Graphify cfg(test) prune step
 tree-sitter-rust  # Rust grammar for the Graphify cfg(test) prune step
 
 # === LOCAL DEVELOPMENT DEPENDENCIES === [ADD REPOSITORY-SPECIFIC DEPENDENCIES HERE]
+numpy  # real-image detector characterization
+Pillow  # real-image detector characterization
+scipy  # real-image detector characterization

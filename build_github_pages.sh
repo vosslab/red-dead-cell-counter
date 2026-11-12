@@ -60,6 +60,8 @@ fi
 rm -rf dist
 mkdir -p dist
 
+wasm-pack build rust --target web --release --out-dir pkg
+
 npx tsc --noEmit -p tsconfig.json
 
 npx esbuild "$ENTRY" \
@@ -70,6 +72,10 @@ npx esbuild "$ENTRY" \
 	--minify \
 	--sourcemap \
 	--outfile=dist/main.js
+
+npx esbuild src/worker.ts --bundle --format=esm --target=es2020 --platform=browser --minify --outfile=dist/worker.js
+mkdir -p dist/wasm
+cp rust/pkg/cell_detector_bg.wasm dist/wasm/
 
 cp src/index.html dist/index.html
 cp src/style.css dist/style.css
