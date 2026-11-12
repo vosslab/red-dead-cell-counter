@@ -17,3 +17,5 @@ origin belongs there too. Rules: [REPO_STYLE.md](REPO_STYLE.md).
 - Treat my related DoG Picker paper as relevant method evidence. My human calibration counts
   are A101 332, A501 362, C601 270, E401 450, F201 1050, and H501 2997.
 - I want to compare settings on one image before applying the selected setting to a batch.
+
+- Give the interface a dark look with an ode to Red Dead Redemption.

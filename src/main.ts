@@ -588,5 +588,6 @@ function main(): void {
     if (result) void showPreview(result);
   });
   elements.zoom.addEventListener("input", updateZoom);
+  window.addEventListener("resize", updateZoom);
 }
 main();

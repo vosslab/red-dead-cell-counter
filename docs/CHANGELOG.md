@@ -12,6 +12,11 @@
 
 ### Changed
 
+- Refreshed the README with the Pages link, calibration evidence, and auto-tuning workflow.
+- Updated the Pages workflow seed to Node 26 and current stable Rust for browser Wasm builds.
+
+- Restyled the interface with a dark frontier palette, Western masthead, red sun, and weathered cream accents inspired by Red Dead Redemption.
+
 - Calibrated the shared detector default to a 10-pixel diameter, k of 4, and response threshold of 0.10.
 - Updated npm and Cargo dependencies, including the TypeScript 7 compiler and lint compatibility API.
 
