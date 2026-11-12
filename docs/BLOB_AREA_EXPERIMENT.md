@@ -103,7 +103,7 @@ not a third automatic rejection criterion. Test whether it adds information beyo
 and roundness before retaining it. Do not infer a biological count directly from any
 shape feature or tune a rule to the eight supplied totals.
 
-The [automatic counting plan](active_plans/active/automatic_image_counting_plan.md)
+The [automatic counting plan](archive/automatic_image_counting_plan.md)
 separates image-specific selection, regional threshold maps, and clump refinement.
 Roundness and inertia are research cues here; the deployed detector does not yet use them.
 

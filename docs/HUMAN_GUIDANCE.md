@@ -70,3 +70,10 @@ origin belongs there too. Rules: [REPO_STYLE.md](REPO_STYLE.md).
 - Turn required gaps into implementation tasks in the current plan, then finish that work.
 - Dream big, then make the ambition practical with missing artifacts, clear success criteria, and
   owned tasks that can be dispatched and completed ([REPO_STYLE.md](REPO_STYLE.md)).
+
+- Make the first-use experience empathetic to biology beginners. This design judgment
+  is difficult for me; use the agents' interface expertise to make it approachable.
+- Tune each image independently. Favor count quality over speed, and prefer a solution
+  that adjusts only the threshold when that works.
+- Keep the cell diameter, DoG k, response threshold, and comparison runs entry boxes in one
+  aligned row on wide screens, with clean wrapping on smaller screens.

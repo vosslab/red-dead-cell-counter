@@ -1,32 +1,43 @@
 # A visual tour
 
-Open [Red Dead Cell Counter](https://vosslab.github.io/red-dead-cell-counter/) to try
-the same workflow. No account or installation is needed; selected images stay on your device.
+Open [Red Dead Cell Counter](https://vosslab.github.io/red-dead-cell-counter/) and choose
+images directly from the Western saloon, or select **Try an example**. No account or
+installation is needed; image processing stays on your device.
 
-The views below show the saloon entrance, an inspected H501 count, batch analysis,
-a processing guide, and H501's completed setting comparison. The comparison statistics
-describe sensitivity to settings rather than biological accuracy.
+The views below show the saloon, a real A501 automatic count, a two-image ledger,
+the same A501 field through four processing stages, and an Advanced manual comparison.
+Automatic counts remain provisional. Comparison statistics describe sensitivity to
+settings rather than biological accuracy.
 
-The processing guide follows the **same H501 field** through four stages. Raw shows
-red fluorescence; DoG emphasizes cell-sized features; the threshold mask keeps pixels
-whose DoG response passes the cutoff. The final panel adds **green circles at counted
-centers**. White mask regions are not the cell count: a joined region can contain several
-peaks. These are labeled crops from actual app outputs, with repeated controls removed
-so the processing differences are easier to see.
+The processing guide follows an **800 x 600 pixel A501 field** with enough surrounding
+cells to compare isolated and nearby spots. **Raw** preserves red fluorescence;
+**DoG** emphasizes cell-sized contrast; **Threshold** keeps pixels at or above the
+actual saved automatic cutoff. The final panel adds green circles at counted centers.
+White regions are candidate pixels, not cell counts. These are labeled crops from
+actual app outputs; they share exactly the same field and settings.
 
 <!-- screenshots:begin (managed by screenshot-docs) -->
-![Western entry screen before image selection](screenshots/saloon.webp)
-![H501 counted with the comparison-selected settings](screenshots/counter.webp)
-![Batch ledger with completed H501 and A501 image counts](screenshots/batch.webp)
-![Same H501 field: raw fluorescence, DoG response, threshold mask, and counted centers](screenshots/viewer_views.webp)
-![H501 setting comparison with count statistics and design rows](screenshots/comparison.webp)
+![Western saloon with direct Choose images and Try an example actions](screenshots/saloon.webp)
+![A501 automatic count with actual cutoff, provisional notice, and green detection markers](screenshots/counter.webp)
+![Two-image automatic ledger with independent saved cutoffs and CSV export](screenshots/batch.webp)
+![Same A501 field: raw fluorescence, DoG response, threshold mask, and counted centers](screenshots/viewer_views.webp)
+![Advanced A501 manual comparison with sensitivity statistics and 21 actual trial rows](screenshots/comparison.webp)
 <!-- screenshots:end -->
 
-Start with **Single image** and **Compare settings**, then **Inspect applied detections**.
-Use **Use settings for batch** to carry the applied settings into a batch and download CSV.
-To reproduce the examples, save [H501.jpg](../IMAGES/H501.jpg) or [A501.jpg](../IMAGES/A501.jpg)
-and choose that file in the browser.
+For your own images, select **Choose images**, then **Count cells**. Inspect the markers
+and select **Download CSV**. The number of selected images determines the processing
+scope; there is no mode selector. Advanced manual analysis and comparison affect the
+selected image only. See [USAGE.md](USAGE.md) and [WORKFLOW_MODES.md](WORKFLOW_MODES.md).
 
-The captures are generated from the local production build. They do not imply that
-the live deployment contains the same revision. See [VERIFICATION.md](VERIFICATION.md)
-for capture commands, checks, and the current documentation receipt.
+The captures come from the local production build and do not establish that the live
+Pages deployment contains this revision. Reproduce them after building and serving:
+
+```sh
+node tests/playwright/capture_readme.mjs http://127.0.0.1:4193/
+```
+
+Replace the URL with the address printed by the local server. The harness writes WebP
+at quality 90 and a capture receipt to `generated/readme_screenshot_capture.json`.
+It checks actual binary/grayscale/color pixels, green overlays, comparison rows, and
+two-image CSV metadata. [VERIFICATION.md](VERIFICATION.md) owns the full execution receipt;
+[AUTOMATIC_DETECTOR_EXPERIMENT.md](AUTOMATIC_DETECTOR_EXPERIMENT.md) owns method limitations.

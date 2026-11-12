@@ -1,6 +1,9 @@
 export const elements = {
   gate: document.querySelector<HTMLElement>("#saloon-gate")!,
-  enter: document.querySelector<HTMLButtonElement>("#enter-saloon")!,
+  chooseImages: document.querySelector<HTMLButtonElement>("#choose-images")!,
+  chooseMoreImages: document.querySelector<HTMLButtonElement>("#choose-more-images")!,
+  tryExample: document.querySelector<HTMLButtonElement>("#try-example")!,
+  exampleStatus: document.querySelector<HTMLElement>("#example-status")!,
   counter: document.querySelector<HTMLElement>("#counter")!,
   counterTitle: document.querySelector<HTMLElement>("#counter-title")!,
   emptyImage: document.querySelector<HTMLElement>("#empty-image")!,
@@ -12,7 +15,6 @@ export const elements = {
   analyze: document.querySelector<HTMLButtonElement>("#analyze")!,
   analyzeSelected: document.querySelector<HTMLButtonElement>("#analyze-selected")!,
   compare: document.querySelector<HTMLButtonElement>("#compare")!,
-  autoTuneBatch: document.querySelector<HTMLButtonElement>("#auto-tune-batch")!,
   cancel: document.querySelector<HTMLButtonElement>("#cancel")!,
   download: document.querySelector<HTMLButtonElement>("#download")!,
   status: document.querySelector<HTMLElement>("#status")!,

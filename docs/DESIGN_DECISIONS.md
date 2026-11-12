@@ -24,8 +24,9 @@ authoritative code or contract document, rather than a person.
 
 ### Retain detector after adaptive experiment
 
-**Decision.** Retain the current detector and its 10 px, k=4, cutoff 0.10 defaults after the
-144-case adaptive blob experiment. Preserve the research harness and negative result rather
+**Decision.** Retain the peak detector after the 144-case adaptive blob experiment.
+Its manual baseline remains 10 px, k=4, cutoff 0.10; the separate automatic threshold
+experiment below determines the beginner Count cells path. Preserve the research harness and negative result rather
 than porting a rejected adaptive policy to Rust/Wasm or adding its mask/CSV interface.
 
 **Why.** Local area refinement improves default count agreement but fails nearby-cutoff
@@ -37,8 +38,8 @@ reviews accept the negative result, including visible loss of lobes during conso
 acceptance rule. The experiment's interval loss evaluates agreement with uncertain ImageJ
 totals; it does not establish biological truth or a new production result contract. A future
 adaptive method must preserve the lineage between its actual mask, emitted centers, settings,
-and exported provenance; this caution is not an implemented adaptive recipe. The broader
-automatic-counting plan remains open.
+and exported provenance; this caution is not an implemented adaptive recipe. The separate automatic threshold experiment evaluates image-specific cutoffs without
+reviving the rejected adaptive blob policies.
 
 **Owner.** [ADAPTIVE_BLOB_EXPERIMENT.md](ADAPTIVE_BLOB_EXPERIMENT.md),
 [adaptive_blob_processing_plan.md](active_plans/active/adaptive_blob_processing_plan.md),
@@ -80,7 +81,8 @@ comparison rendering and progress/statistical feedback. `detector_settings.ts`
 owns reading, rounding, and validation of settings; `count_statistics.ts` owns
 count statistics and formatting. `counter_elements.ts` catalogs DOM handles.
 Types live with their owning modules. This adds no framework, event bus, or dependency.
-The existing `image_viewer.ts` and `workflow_modes.ts` retain their responsibilities.
+`image_viewer.ts` retains canvas responsibilities; file selection length determines
+single/multiple scope without a separate workflow-mode module.
 
 **Owner.** `src/main.ts`, `src/counter_controller.ts`, `src/detector_client.ts`,
 `src/image_workspace.ts`, and `src/comparison_panel.ts`
@@ -93,8 +95,8 @@ a WebAssembly worker.
 **Why.** A static GitHub Pages site has no server-side image store, and the supplied images
 are large enough that processing must not freeze the user interface.
 
-**Consequence.** Uploaded images do not leave the browser. The worker owns sequential batch
-processing and returns compact center-coordinate results.
+**Consequence.** Uploaded images do not leave the browser. The controller coordinates sequential batch
+requests; the worker performs numerical analysis and returns compact center-coordinate results.
 
 **Owner.** `src/detector_client.ts`, `src/counter_controller.ts`, and `src/worker.ts`
 
@@ -127,8 +129,9 @@ et al., *DoG Picker and TiltPicker*.
 **Why.** This is the user-selected method and it separates nearby bright objects better than
 counting raw thresholded connected components.
 
-**Consequence.** The verified starting values are a 10-pixel target diameter, k = 4, and
-response threshold 0.10. Single-image comparison starts with a 15-run central composite
+**Consequence.** The manual starting values are a 10-pixel target diameter, k = 4, and
+response threshold 0.10. Automatic counting starts with the same diameter/k and fits
+its own threshold independently for each image. Single-image comparison starts with a 15-run central composite
 design: eight factorial corners, six axial points, and one center. The default 21 runs
 add six inner-axis points. Users can choose 15-100 runs; larger budgets add deterministic
 settings spread across the range. For three factors, alpha = 8^(1/4),
@@ -141,9 +144,9 @@ processing, and CSV agree. This quantization approximates the continuous design.
 Thresholds must exceed 0.00001, making 0.00002 the smallest five-decimal setting.
 The interface displays the processed start and actual center/ranges.
 The representative median run is the actual tested run closest to the median successful count,
-with ties resolved by logarithmic distance from the center. Auto-tune may apply that run to a
-batch. This describes a representative result, not an accuracy optimizer or quadratic-model
-optimizer. The summary keeps mean, median, and population standard deviation across successful
+with ties resolved by logarithmic distance from the center. Applying that run changes only the selected image and saves manual provenance.
+This describes a representative result, not an accuracy optimizer, quadratic-model
+optimizer, or batch parameter selector. The summary keeps mean, median, and population standard deviation across successful
 runs, with those statistics also shown in the table footer. The expanded rounded design
 is not claimed to be exactly rotatable or orthogonal.
 
@@ -164,16 +167,17 @@ dimensions, buffer length, and numeric detector inputs.
 
 ### Saloon entrance and Western surfaces
 
-**Decision.** Open on an illustrated saloon with one Enter saloon button. Keep the
-counter hidden until entry, then focus its heading. Use original SVG art, CSS wood
+**Decision.** Open on an illustrated saloon with Choose images and Try an example.
+Choosing files enters the counter directly and focuses its heading; the example
+lazily loads real A501 pixels and runs the same automatic pipeline. Use original SVG art, CSS wood
 surfaces, and aged-paper wanted posters and results. Use the full product name,
 Red Dead Cell Counter, in the browser title, entrance, workbench, and README heading.
 
 **Why.** The requested Western theme needs a recognizable place and materials.
 Local assets keep the static tool self-contained.
 
-**Consequence.** Entry requires one click or keyboard activation on each page load.
-Decorative art stays silent to assistive technology, door motion honors reduced
+**Consequence.** The primary entry action starts file selection; no extra entry button
+stands between arrival and the task. Decorative art stays silent to assistive technology, door motion honors reduced
 motion, and microscopy images retain a neutral dark viewing surface.
 
 **Owner.** `src/index.html`, `src/style.css`, `src/assets/`, and `src/main.ts`
@@ -198,28 +202,66 @@ available; panning does not alter image coordinates, detection data, or zoom.
 
 **Owner.** `rust/src/lib.rs`, `src/worker.ts`, `src/image_viewer.ts`, and `src/image_workspace.ts`
 
-### Researcher workflow and result context
+### Beginner counting and advanced research
 
-**Decision.** Separate Single image tuning/inspection from Batch processing/export with
-an explicit mode selector, using shared files, settings, counts, and viewer state.
-Single image exposes Images and Tune and inspect; Batch adds Count and export.
-Use a compact workbench masthead with the full name, subtitle, and small skull.
-Keep Compare settings prominent, disable analysis until files exist, and place the
-selected filename, count, and applied settings directly above its image. Show comparison
-statistics before the detailed runs and offer a direct return to inspect applied picks.
+**Decision.** Make Choose images, Count cells, inspect markers, and Download CSV the
+primary path. Infer one-image or multi-image scope from the selected file set. Keep
+manual selected-image analysis and 15-100 comparison trials in Advanced settings.
 
-**Why.** The previous flat toolbar gave several actions similar emphasis, the large
-masthead displaced the work, and the count's filename and settings required consulting
-other panels. Editing controls must not suggest that an existing count has changed.
+**Why.** Students should reach an inspectable count without first learning detector
+parameters or choosing a processing mode. Research comparisons remain useful for
+exploring sensitivity, but their representative median does not establish accuracy.
 
-**Consequence.** The ledger uses native filename buttons with a current-image state.
-The viewer labels stale controls while preserving the actual count's settings. Batch
-completion remains separate from single-image inspection. Technical design ranges stay
-available in a disclosure, alongside the complete run table and statistics footer.
-Mode switching preserves work and is disabled while processing. Explicit handoffs carry
-current settings to Batch or a selected batch image back to Single image. Batch auto-tuning
-retains visible comparison progress; detailed runs are inspected in Single image. See
-[WORKFLOW_MODES.md](WORKFLOW_MODES.md) for the task model and acceptance criteria.
+**Consequence.** Delete mode-switch and batch-handoff state. Automatic processing fits
+each image independently. Manual actions update only the selected image. Advanced
+diameter/k edits affect new automatic runs; manual threshold edits do not override
+the automatic selector. Existing results retain their actual saved settings. The
+compact Western workbench keeps filename, count, method, and review notices together.
+Cognitive walkthroughs and guideline checks assess the interface; they are not a
+student study and human participation is not an engineering milestone gate.
 
-**Owner.** `src/workflow_modes.ts`, `src/index.html`, `src/style.css`,
-`src/counter_controller.ts`, `src/image_workspace.ts`, and `src/comparison_panel.ts`
+**Owner.** [WORKFLOW_MODES.md](WORKFLOW_MODES.md), `src/counter_controller.ts`,
+`src/index.html`, and `src/image_workspace.ts`
+
+### Provisional per-image automatic threshold
+
+**Decision.** Use binary Otsu on each image's positive DoG response for automatic
+counting. Native and Wasm callers share `PreparedImage` and the numerical response.
+Every automatic result includes `provisional_calibration`.
+
+**Why.** Binary Otsu ranks first among the three frozen automatic candidates on eight
+calibration images. Its mean outside-interval loss is 2.524% with three images outside,
+compared with 4.187% and four outside for fixed 0.10. Fixed 0.12 nevertheless puts all
+eight inside and has lower center MAPE (5.188% versus 8.120% automatic). The evidence
+supports a provisional implementation, not a general accuracy claim.
+
+**Consequence.** Threshold selection receives pixels and diameter/k, without filenames,
+reference totals, or a batch-derived cutoff. Diameter 10 px and k 4 are starting values;
+Advanced edits affect future runs. Histogram selection, native center detection,
+preview masks, and reported cutoff share one numerical contract. Research alternatives
+and negative results remain reproducible without becoming extra beginner controls.
+ImageJ totals are uncertain calibration evidence, not biological truth or independent
+validation. The complete method and evidence belong in
+[AUTOMATIC_DETECTOR_EXPERIMENT.md](AUTOMATIC_DETECTOR_EXPERIMENT.md).
+
+**Owner.** `rust/src/automatic_threshold.rs`, `rust/src/prepared_image.rs`,
+`src/worker.ts`, and [AUTOMATIC_DETECTOR_EXPERIMENT.md](AUTOMATIC_DETECTOR_EXPERIMENT.md)
+
+### Saved analysis owns result provenance
+
+**Decision.** Store centers with typed `SavedAnalysis`: actual settings, automatic/manual
+mode, method, version, review reasons, and no-signal state. Display, derived previews,
+and CSV read this saved record rather than current editable controls.
+
+**Why.** Per-image thresholds and selected-image manual research make global controls
+insufficient to describe a result. Failed or cancelled reruns must preserve usable
+previous counts without presenting them as a successful new analysis.
+
+**Consequence.** Save a replacement analysis only when processing succeeds. Retain
+previous centers and metadata on failure/cancellation, alongside the new attempt status
+and error. Export every selected row, including waiting/failed/cancelled rows, through
+the same one-file or partial CSV path. CSV records provenance for each saved count;
+it is not a complete session reload format.
+
+**Owner.** `src/analysis_types.ts`, `src/counter_controller.ts`,
+`src/image_workspace.ts`, and `src/worker.ts`

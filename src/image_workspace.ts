@@ -1,16 +1,18 @@
 import { elements } from "./counter_elements.js";
-import { comparisonSettingsText, settings, validate } from "./detector_settings.js";
+import { comparisonSettingsText, settings } from "./detector_settings.js";
+import type { SavedAnalysis } from "./analysis_types.js";
 import { formatCount } from "./count_statistics.js";
 import { roundSettings, type DetectorSettings } from "./experiment_design.js";
-import { createImageViewer, type ViewerSettings } from "./image_viewer.js";
+import { createImageViewer } from "./image_viewer.js";
 
 export type ImageResult = {
   file: File;
   width: number;
   height: number;
-  settings?: DetectorSettings;
+  analysis?: SavedAnalysis;
   centers?: Float32Array;
   error?: string;
+  status?: "waiting" | "working" | "completed" | "failed" | "cancelled";
 };
 
 export type ImageSelection = { results: ImageResult[]; selected: number };
@@ -19,6 +21,7 @@ type WorkspaceHooks = {
   isActive: () => boolean;
   isBatch: () => boolean;
   onSelect: (index: number) => void;
+  onPreviewBusy: (busy: boolean) => void;
   setStatus: (message: string) => void;
 };
 
@@ -34,7 +37,7 @@ type ImageWorkspace = {
 };
 
 function safeCell(text: string): string {
-  return /^[\t\r\n ]*[=+\-@]/.test(text) ? `'${text}` : text;
+  return /^[\t\r\n\0]|^[\t\r\n ]*[=+\-@]/.test(text) ? `'${text}` : text;
 }
 
 function cell(text: string, className?: string): HTMLTableCellElement {
@@ -48,10 +51,44 @@ function showNumber(value: number): string {
   return Number(value.toPrecision(4)).toString();
 }
 
+function reviewReasonText(reason: string): string {
+  switch (reason) {
+    case "provisional_calibration":
+      return "Provisional automatic estimate: this method has been tested on eight calibration images and still needs independent validation.";
+    case "threshold_sensitive":
+      return "Count changes by more than 10% when the threshold is varied slightly; inspect the markers.";
+    case "threshold_precision_limited":
+      return "The threshold reached the processing precision limit; inspect faint detections.";
+    case "no_detections":
+      return "No cells were detected at this threshold.";
+    case "no_positive_response":
+      return "The image has no positive detection signal.";
+    case "uniform_positive_response":
+      return "The image has too little signal contrast for an automatic count.";
+    case "nonfinite_response":
+      return "The image produced invalid signal values; try another image.";
+    case "li_empty_partition":
+    case "li_invalid_iteration":
+    case "li_iteration_limit":
+    case "multi_otsu_empty_partition":
+    case "otsu_empty_partition":
+      return "The image's intensity groups could not be separated reliably; inspect the markers.";
+    case "same_image_binary_otsu_fallback":
+      return "A simpler automatic threshold method was used on this image; inspect the markers.";
+    default:
+      return `Review recommended: ${reason.replace(/_/g, " ")}.`;
+  }
+}
+
 export function createImageWorkspace(
   selection: Readonly<ImageSelection>,
   hooks: WorkspaceHooks,
 ): ImageWorkspace {
+  const inspection = document.querySelector<HTMLElement>("#image-inspection")!;
+  const imageTools = document.querySelector<HTMLElement>("#image-tools")!;
+  const viewTools = document.querySelector<HTMLElement>("#image-view-tools")!;
+  const analysisNotice = document.querySelector<HTMLElement>("#analysis-notice")!;
+
   function updateZoom(): void {
     const percent = Number(elements.zoom.value);
     const wrap = elements.canvas.parentElement;
@@ -84,35 +121,73 @@ export function createImageWorkspace(
       : result
         ? `Selected: ${result.file.name}`
         : "No image selected.";
-    const counted = selection.results.filter(
-      (item) => item.centers !== undefined && !item.error,
-    ).length;
+    const counted = selection.results.filter((item) => item.centers !== undefined).length;
     const failed = selection.results.filter((item) => item.error !== undefined).length;
-    const waiting = selection.results.length - counted - failed;
+    const queued = selection.results.filter(
+      (item) => item.status === "waiting" && item.centers !== undefined,
+    ).length;
+    const waiting = selection.results.filter(
+      (item) =>
+        item.centers === undefined &&
+        !item.error &&
+        item.status !== "working" &&
+        item.status !== "cancelled",
+    ).length;
+    const working = selection.results.filter((item) => item.status === "working").length;
+    const cancelled = selection.results.filter((item) => item.status === "cancelled").length;
     elements.batchSummary.textContent = selection.results.length
-      ? `${formatCount(counted)} of ${formatCount(selection.results.length)} counted${failed ? ` | ${formatCount(failed)} failed` : ""}${waiting ? ` | ${formatCount(waiting)} waiting` : ""}`
+      ? `${formatCount(counted)} of ${formatCount(selection.results.length)} have saved counts${queued ? ` | ${formatCount(queued)} queued for recount` : ""}${working ? ` | ${formatCount(working)} working` : ""}${failed ? ` | ${formatCount(failed)} latest attempts failed` : ""}${cancelled ? ` | ${formatCount(cancelled)} cancelled` : ""}${waiting ? ` | ${formatCount(waiting)} pending` : ""}`
       : "No images selected.";
     elements.ledgerEmpty.hidden = selection.results.length > 0;
+    inspection.hidden = !result;
+    viewTools.hidden = !result?.analysis;
     elements.selectedImageName.textContent = result?.file.name ?? "Image inspection";
-    elements.selectedImageCount.textContent =
-      result?.centers && !result.error ? formatCount(result.centers.length / 2) : "--";
-    elements.selectedCountLabel.textContent = result?.error
-      ? "Could not count"
+    elements.selectedImageCount.textContent = result?.centers
+      ? formatCount(result.centers.length / 2)
+      : "--";
+    const prior =
+      result?.centers !== undefined &&
+      (result.error !== undefined ||
+        result.status === "waiting" ||
+        result.status === "working" ||
+        result.status === "cancelled");
+    elements.selectedCountLabel.textContent = prior
+      ? "cells in previous saved count"
       : result?.centers
         ? "cells detected"
-        : "Not counted";
+        : result?.error
+          ? "Could not count"
+          : "Not counted";
+    const analysis = result?.analysis;
+    const notices =
+      analysis?.mode === "automatic"
+        ? ["Automatic estimate. Review the detection markers before using this count."]
+        : analysis
+          ? ["Manual settings. Review the detection markers before using this count."]
+          : ["Select Count cells to get an automatic count."];
+    if (analysis?.noSignal) notices.push("No usable signal was found; the saved count is zero.");
+    for (const reason of analysis?.reviewReasons ?? []) notices.push(reviewReasonText(reason));
+    if (prior)
+      notices.push("The displayed count and views are from the previous successful analysis.");
+    if (result?.status === "working") notices.push("Counting this image...");
+    if (result?.status === "cancelled")
+      notices.push("The latest count was cancelled. You can retry it.");
+    if (result?.error) notices.push(`The latest attempt failed: ${result.error}`);
+    analysisNotice.textContent = notices.join(" ");
     if (!result) {
       elements.selectedImageDetails.textContent = "Choose an image to inspect it.";
+    } else if (analysis) {
+      const changed = Object.entries(roundSettings(settings())).some(
+        ([key, value]) =>
+          (analysis.mode === "manual" || key !== "threshold") &&
+          value !== analysis.settings[key as keyof DetectorSettings],
+      );
+      elements.selectedImageDetails.textContent = `${changed ? "Controls changed; the displayed count still uses " : "Counted with "}${comparisonSettingsText(analysis.settings)}. ${formatCount(result.width)} x ${formatCount(result.height)} px. Method: ${analysis.method}; version: ${analysis.version}.`;
     } else if (result.error) {
       elements.selectedImageDetails.textContent = `${result.error} Choose another image or retry analysis.`;
-    } else if (result.settings) {
-      const changed = Object.entries(roundSettings(settings())).some(
-        ([key, value]) => value !== result.settings?.[key as keyof DetectorSettings],
-      );
-      elements.selectedImageDetails.textContent = `${changed ? "Controls changed; the displayed count still uses " : "Counted with "}${comparisonSettingsText(result.settings)}. ${formatCount(result.width)} x ${formatCount(result.height)} px.`;
     } else {
       elements.selectedImageDetails.textContent =
-        "Ready to inspect. Compare settings to count this image and test nearby values.";
+        "Ready to inspect. Select Count cells for an automatic estimate.";
     }
   }
 
@@ -121,10 +196,10 @@ export function createImageWorkspace(
     width: number,
     result: ImageResult,
   ): void {
-    if (!elements.markers.checked || !result.centers) return;
+    if (!elements.markers.checked || !result.centers || !result.analysis) return;
     context.strokeStyle = "#7dffb0";
     context.lineWidth = Math.max(2, width / 1300);
-    const radius = (result.settings?.diameter ?? settings().diameter) / 2;
+    const radius = result.analysis.settings.diameter / 2;
     for (let index = 0; index < result.centers.length; index += 2) {
       const x = result.centers[index];
       const y = result.centers[index + 1];
@@ -138,19 +213,21 @@ export function createImageWorkspace(
 
   async function showPreview(result: ImageResult): Promise<void> {
     updateSummary();
+    hooks.onPreviewBusy(true);
     try {
-      const rounded = roundSettings(settings());
-      const projectionSettings: ViewerSettings | undefined =
-        result.settings ?? (validate(rounded) ? rounded : undefined);
       await viewer.show(
         result.file,
-        projectionSettings,
+        result.analysis?.settings,
         function drawOverlay(context, width): void {
           drawDetections(context, width, result);
         },
       );
+      if (selection.results[selection.selected] === result)
+        imageTools.hidden = elements.canvas.hidden;
     } catch (error: unknown) {
       hooks.setStatus(error instanceof Error ? error.message : "Preview failed.");
+    } finally {
+      hooks.onPreviewBusy(false);
     }
   }
 
@@ -161,7 +238,18 @@ export function createImageWorkspace(
       const row = document.createElement("tr");
       if (index === selection.selected) row.className = "selected";
       const count = result.centers ? formatCount(result.centers.length / 2) : "";
-      const state = result.error ? result.error : result.centers ? "Done" : "Waiting";
+      const state =
+        result.status === "waiting" && result.centers
+          ? "Queued (previous count retained)"
+          : result.status === "working"
+            ? "Working"
+            : result.error
+              ? `Failed: ${result.error}${result.centers ? " (previous count retained)" : ""}`
+              : result.status === "cancelled"
+                ? `Cancelled${result.centers ? " (previous count retained)" : ""}`
+                : result.centers
+                  ? "Done"
+                  : "Pending";
       const nameCell = cell("");
       const select = document.createElement("button");
       select.type = "button";
@@ -189,7 +277,7 @@ export function createImageWorkspace(
 
   function download(): void {
     const lines = [
-      "filename,width,height,count,status,error,diameter_px,k,threshold,algorithm_version",
+      "filename,width,height,count,status,error,diameter_px,k,threshold,algorithm_version,method,mode,review_reasons,no_signal",
     ];
     for (const result of selection.results) {
       const fields = [
@@ -197,12 +285,16 @@ export function createImageWorkspace(
         String(result.width),
         String(result.height),
         result.centers ? String(result.centers.length / 2) : "",
-        result.error ? "failed" : result.centers ? "done" : "waiting",
+        result.status ?? (result.error ? "failed" : result.centers ? "completed" : "waiting"),
         result.error ?? "",
-        result.settings?.diameter.toFixed(2) ?? "",
-        result.settings?.k.toFixed(2) ?? "",
-        result.settings?.threshold.toFixed(5) ?? "",
-        "dog-picker-1",
+        result.analysis?.settings.diameter.toFixed(2) ?? "",
+        result.analysis?.settings.k.toFixed(2) ?? "",
+        result.analysis?.settings.threshold.toFixed(5) ?? "",
+        result.analysis?.version ?? "",
+        result.analysis?.method ?? "",
+        result.analysis?.mode ?? "",
+        result.analysis?.reviewReasons.join("; ") ?? "",
+        result.analysis ? String(result.analysis.noSignal) : "",
       ];
       // ASVS 1.2.10: prefix formula-like filenames before spreadsheet export.
       lines.push(
@@ -244,6 +336,9 @@ export function createImageWorkspace(
     invalidate: (): void => viewer.invalidate(),
     clear: (): void => {
       viewer.clear();
+      inspection.hidden = true;
+      imageTools.hidden = true;
+      viewTools.hidden = true;
       elements.canvas.hidden = true;
       elements.emptyImage.hidden = false;
     },

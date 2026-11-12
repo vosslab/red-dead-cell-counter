@@ -4,6 +4,15 @@
 
 ### Additions and New Features
 
+- Implemented image-by-image automatic counting with a binary Otsu cutoff fitted to
+  each image's positive DoG response in shared native Rust/Wasm. Saved results include
+  the actual cutoff, method/version, automatic/manual mode, and review reasons;
+  every automatic result is marked provisional after eight-image calibration.
+- Added a beginner path from the saloon's Choose images action to Count cells,
+  marker inspection, and one-file or partial CSV export. Try an example lazily loads
+  and counts real A501 pixels through the same pipeline. Advanced manual analysis and
+  15-100-run comparison affect only the selected image.
+
 - Added a reproducible six-policy adaptive-blob research harness and
   [ADAPTIVE_BLOB_EXPERIMENT.md](ADAPTIVE_BLOB_EXPERIMENT.md). Saved 144 real-image cases,
   106,944 parent decisions, and 46 comparison crops; preserved one visible consolidation
@@ -25,6 +34,22 @@
 
 ### Behavior or Interface Changes
 
+- Align the four Advanced tuning inputs in equal columns on wide screens, with two-column
+  and single-column layouts on smaller screens. Shared label, input, and helper rows keep
+  the entry boxes aligned when text wraps.
+
+- Infer single-image or batch scope from the selected file set. Count cells adjusts
+  each image independently; Advanced diameter/k changes affect later runs. Preserve
+  completed and previously saved counts through cancellation or failed recounts,
+  with explicit prior-result labels and actual saved provenance in the viewer and CSV.
+
+- Updated beginner documentation to Choose images, Count cells, inspect markers, and
+  Download CSV. Documented real-example loading, per-image automatic thresholds,
+  selected-image Advanced research, partial exports, and saved-analysis provenance.
+- Added usage, architecture, and file-structure references for the shared native/Wasm
+  numerical path. Kept calibration limitations visible and linked the automatic-method
+  experiment without treating uncertain ImageJ totals as independent validation.
+
 - Reworked the README for biology students with a browser-first H501 walkthrough,
   plain-language detector controls, an inspection exercise, and a separate visual tour.
   Kept calibration evidence and moved developer setup into an optional disclosure.
@@ -32,6 +57,13 @@
   harness. The README now leads with a zoomed H501 count and detection overlay.
 
 ### Fixes and Maintenance
+
+- Skip deleted worktree paths before content-reading hygiene filters, so archived plans can be
+  checked without staging Git changes.
+
+- Fixed manual comparison requests whose design-point kind overwrote the worker's
+  detect message kind, causing every trial to fail. Clear/free prepared worker state
+  before validating replacement pixels so a rejected replacement cannot reuse an old image.
 
 - Corrected the experimental runner's float32-inclusive cutoff comparison at 0.08/0.12.
   The complete corrected rerun changes zero experiment outputs. Restored executable modes
@@ -48,6 +80,13 @@
   Preserved existing detector settings, prepared-image reuse, and user workflows.
 
 ### Developer Tests and Notes
+
+- Recaptured all five managed WebP screenshots at quality 90 from the corrected local
+  production build. Verified the real A501 example (291 cells, cutoff 0.26860), H501
+  (2,456, cutoff 0.26307), per-row automatic CSV metadata, 21 successful Advanced
+  comparison trials, and distinct actual Raw/DoG/Threshold/marker pixels. Inspected
+  the final images and the README views at 880 px; 62 focused documentation checks pass.
+  This capture does not verify the public deployment or biological accuracy.
 
 - The final adaptive experiment runs in 38.55 seconds with about 1.24 GB Python high-water
   RSS and 364.53 MB child high-water RSS, measured separately. All eight default P center

@@ -1,9 +1,17 @@
 # Comparison feedback inspection
 
-The current interface separates Single image tuning/inspection from Batch processing
-and CSV export. [WORKFLOW_MODES.md](WORKFLOW_MODES.md) records the latest task model,
-handoffs, state-preservation rules, and acceptance checks. The sections below preserve
-the evidence and rationale from earlier inspection passes.
+The current workflow uses **Count cells** to analyze every selected image, with each
+image receiving its own threshold. Advanced settings provide manual analysis and a
+comparison on the selected image; comparison is a sensitivity check, and its tested
+median run can be applied as a manual result. CSV exports one or many selected images.
+See [WORKFLOW_MODES.md](WORKFLOW_MODES.md) and
+[beginner_task_model.md](active_plans/reports/beginner_task_model.md) for the current
+workflow and acceptance checks.
+
+The inspection findings and scenarios below are historical records from earlier
+interfaces. Their tuning-first, batch-handoff, and recommendation scenarios were
+superseded by the current workflow; retain them as evidence of past inspections, not as
+instructions for using the current interface.
 
 ## Task and evidence scope
 

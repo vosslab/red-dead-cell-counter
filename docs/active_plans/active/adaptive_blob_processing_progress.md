@@ -12,7 +12,7 @@ sensitivity regression. Independent assessments accept the negative result. M14-
 under the approved no-winner branch; there is no selected policy to port or expose. M18 has
 passing regression/performance evidence and completed documentation. The fresh
 `adaptive_integration_review` accepts final integration with no blockers. The broader
-[automatic_image_counting_plan.md](automatic_image_counting_plan.md)
+[automatic_image_counting_plan.md](../../archive/automatic_image_counting_plan.md)
 remains open. Keeping this local plan and ledger discoverable does not require an index change.
 
 | M | Owner | Status | Depends on | Receipt / exact command |

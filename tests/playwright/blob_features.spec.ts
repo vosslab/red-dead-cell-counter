@@ -1,7 +1,7 @@
 /// <reference types="node" />
 import { expect, test } from "@playwright/test";
 
-type BlobReply = { id: number; blobFeatures?: Float64Array; error?: string };
+type BlobReply = { id: number; ok: boolean; blobFeatures?: Float64Array; error?: string };
 
 test("production worker measures 8-connected masks with defined shape features", async ({
   page,
@@ -37,12 +37,16 @@ test("production worker measures 8-connected masks with defined shape features",
         square.blobFeatures instanceof Float64Array,
       diagonal: Array.from(diagonal.blobFeatures ?? []),
       diagonalError: diagonal.error,
+      diagonalOk: diagonal.ok,
       square: Array.from(square.blobFeatures ?? []),
       squareError: square.error,
       invalidError: invalid.error,
+      invalidOk: invalid.ok,
     };
   });
   expect(result.typedPayload).toBe(true);
+  expect(result.diagonalOk).toBe(true);
+  expect(result.invalidOk).toBe(false);
   expect(result.diagonalError).toBeUndefined();
   expect(result.diagonal.slice(0, 5)).toEqual([0, 0, 2, 0.5, 0.5]);
   expect(result.diagonal[5]).toBeCloseTo(2 * Math.sqrt(2 / Math.PI), 12);

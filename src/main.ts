@@ -3,13 +3,16 @@ import { createCounterController } from "./counter_controller.js";
 
 function main(): void {
   const counter = createCounterController();
-  elements.enter.addEventListener("click", function enterSaloon(): void {
-    elements.gate.hidden = true;
-    elements.counter.hidden = false;
-    elements.counterTitle.focus();
+  for (const button of [elements.chooseImages, elements.chooseMoreImages])
+    button.addEventListener("click", function chooseImages(): void {
+      elements.images.click();
+    });
+  elements.images.addEventListener("change", function choose(): void {
+    void counter.choose();
   });
-  elements.enter.disabled = false;
-  elements.images.addEventListener("change", counter.choose);
+  elements.tryExample.addEventListener("click", function tryExample(): void {
+    void counter.tryExample();
+  });
   elements.analyze.addEventListener("click", function start(): void {
     void counter.analyze();
   });
@@ -18,9 +21,6 @@ function main(): void {
   });
   elements.compare.addEventListener("click", function startComparison(): void {
     void counter.compareSettings();
-  });
-  elements.autoTuneBatch.addEventListener("click", function startAutoTuneBatch(): void {
-    void counter.autoTuneAndAnalyzeBatch();
   });
   elements.cancel.addEventListener("click", counter.cancel);
   elements.comparisonCancel.addEventListener("click", function cancelComparison(): void {

@@ -8,6 +8,7 @@ import {
 } from "./count_statistics.js";
 import { comparisonSettingsText } from "./detector_settings.js";
 import type { DesignPoint, DetectorSettings } from "./experiment_design.js";
+import type { ImageResult } from "./image_workspace.js";
 
 export type Comparison = {
   settings: DetectorSettings;
@@ -68,7 +69,7 @@ export function createComparisonPanel(
   end: () => void;
   cancelled: (total: number) => CountStatistics | undefined;
   finish: (elapsed: number) => CountStatistics | undefined;
-  applied: (result: { file: File }, totalImages: number) => void;
+  applied: (result: ImageResult) => void;
 } {
   function statistics(counts: number[]): CountStatistics | undefined {
     const result = countStatistics(counts);
@@ -244,10 +245,9 @@ export function createComparisonPanel(
     return result;
   }
 
-  function applied(result: { file: File }, totalImages: number): void {
-    const comparison = state.applied;
-    if (!comparison) return;
-    elements.comparisonApplied.textContent = `Applied to ${result.file.name}: ${comparisonSettingsText(comparison.settings)}. Inspect the detections, then use Analyze images in Batch mode to count all ${formatCount(totalImages)} selected image${totalImages === 1 ? "" : "s"} with these settings.`;
+  function applied(result: ImageResult): void {
+    if (!result.analysis) return;
+    elements.comparisonApplied.textContent = `Applied to ${result.file.name} only: ${comparisonSettingsText(result.analysis.settings)}. Inspect the detections. Comparison counts describe sensitivity to settings; the median does not establish accuracy.`;
   }
 
   return {

@@ -1,34 +1,29 @@
 /// <reference types="node" />
-// Selector contract: accessible labels and buttons in src/index.html.
+// Selector contract: native arrival/Advanced controls in src/index.html:13, src/index.html:213;
+// result rows and saved-setting captions in src/image_workspace.ts; viewer tabs in src/image_viewer.ts.
 import { expect, test, type Download, type Locator, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import type { SavedAnalysis, WorkerReply } from "../../src/analysis_types.js";
 
 const a501 = path.join(process.cwd(), "IMAGES", "A501.jpg");
 
-async function a501Payload(): Promise<{ name: string; mimeType: string; buffer: Buffer }> {
-  return { name: "A501.jpg", mimeType: "image/jpeg", buffer: await readFile(a501) };
-}
+type Payload = { name: string; mimeType: string; buffer: Buffer };
+type AutomaticResult = { centers: number[]; analysis: SavedAnalysis };
+type WorkerLog = { results: AutomaticResult[]; previews: { threshold: number; k: number }[] };
 
-async function realImageCrop(
-  page: Page,
-  side = 640,
-): Promise<{ name: string; mimeType: string; buffer: Buffer }> {
-  const picker = page.getByLabel(/^Choose images?$/);
-  await picker.setInputFiles(a501);
-  const dataUrl = await picker.evaluate(
-    async (input: HTMLInputElement, side: number): Promise<string> => {
-      const file = input.files?.[0];
-      if (!file) throw new Error("The A501 image was not selected.");
-      const bitmap = await createImageBitmap(file);
+async function realImageCrop(page: Page, side = 128): Promise<Payload> {
+  const encoded = (await readFile(a501)).toString("base64");
+  const dataUrl = await page.evaluate(
+    async ({ encoded, side }) => {
+      const bitmap = await createImageBitmap(
+        await (await fetch(`data:image/jpeg;base64,${encoded}`)).blob(),
+      );
       const canvas = document.createElement("canvas");
       canvas.width = side;
       canvas.height = side;
       const context = canvas.getContext("2d");
-      if (!context) {
-        bitmap.close();
-        throw new Error("Canvas is unavailable.");
-      }
+      if (!context) throw new Error("Canvas is unavailable.");
       context.drawImage(
         bitmap,
         Math.floor((bitmap.width - side) / 2),
@@ -41,30 +36,14 @@ async function realImageCrop(
         side,
       );
       bitmap.close();
-      const blob = await new Promise<Blob>((resolve, reject): void => {
-        canvas.toBlob((value): void => {
-          if (value) resolve(value);
-          else reject(new Error("Could not encode the real-image crop."));
-        }, "image/png");
-      });
-      return new Promise<string>((resolve, reject): void => {
-        const reader = new FileReader();
-        reader.addEventListener("load", (): void => {
-          if (typeof reader.result === "string") resolve(reader.result);
-          else reject(new Error("The crop encoder returned no data URL."));
-        });
-        reader.addEventListener("error", (): void =>
-          reject(reader.error ?? new Error("Crop encoding failed.")),
-        );
-        reader.readAsDataURL(blob);
-      });
+      return canvas.toDataURL("image/png");
     },
-    side,
+    { encoded, side },
   );
   return {
     name: "A501-central-crop.png",
     mimeType: "image/png",
-    buffer: Buffer.from(dataUrl.slice(dataUrl.indexOf(",") + 1), "base64"),
+    buffer: Buffer.from(dataUrl.split(",")[1]!, "base64"),
   };
 }
 
@@ -74,96 +53,350 @@ async function csvContent(download: Download): Promise<string> {
   return readFile(downloaded, "utf8");
 }
 
+async function csvRows(page: Page): Promise<Record<string, string>[]> {
+  const pending = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download CSV", exact: true }).click();
+  const download = await pending;
+  expect(download.suggestedFilename()).toBe("dead-cell-counts.csv");
+  const [header, ...lines] = (await csvContent(download)).split("\r\n");
+  const keys = header!.split(",");
+  return lines.map((line) => {
+    const fields = [...line.matchAll(/"((?:[^"]|"")*)"(?:,|$)/g)].map((match) =>
+      match[1]!.replace(/""/g, '"'),
+    );
+    expect(fields).toHaveLength(keys.length);
+    return Object.fromEntries(keys.map((key, index) => [key, fields[index]!]));
+  });
+}
+
 function picker(page: Page): Locator {
-  return page.getByLabel(/^Choose images?$/);
+  return page.getByLabel("Choose microscopy images", { exact: true });
 }
-
-async function selectMode(page: Page, mode: "single" | "batch"): Promise<void> {
-  const label = mode === "single" ? "Single image" : "Batch";
-  const radio = page.getByRole("radio", { name: label, exact: true });
-  await radio.check();
-  await expect(radio).toBeChecked();
-}
-
-async function open(page: Page, mode: "single" | "batch" = "single"): Promise<void> {
+async function open(page: Page): Promise<void> {
   await page.goto("/");
   await expect(page).toHaveTitle("Red Dead Cell Counter");
-  await page.getByRole("button", { name: "Enter saloon" }).click();
-  await expect(page.getByRole("status")).toHaveText("Choose a JPEG or PNG image.");
-  if (mode === "batch") {
-    await selectMode(page, "batch");
-    await expect(page.getByRole("status")).toHaveText("Choose one or more JPEG or PNG images.");
-  }
+}
+async function advanced(page: Page): Promise<void> {
+  const panel = page.locator("#advanced-settings");
+  if ((await panel.getAttribute("open")) === null) await panel.locator("summary").first().click();
+}
+async function count(page: Page): Promise<void> {
+  await page.getByRole("button", { name: "Count cells", exact: true }).click();
+  await expect(page.locator("#status")).toContainText("Automatic counting finished", {
+    timeout: 230_000,
+  });
+}
+async function workerLog(page: Page): Promise<WorkerLog> {
+  return page.evaluate(() => (window as unknown as { workerLog: WorkerLog }).workerLog);
 }
 
-test.beforeEach(({ page }): void => {
+test.beforeEach(async ({ page }) => {
   page.on("pageerror", (error: Error): void => {
     throw error;
   });
+  await page.addInitScript(() => {
+    const log = {
+      results: [] as AutomaticResult[],
+      previews: [] as { threshold: number; k: number }[],
+    };
+    (window as unknown as { workerLog: WorkerLog }).workerLog = log;
+    const OriginalWorker = window.Worker;
+    window.Worker = class extends OriginalWorker {
+      constructor(url: string | URL, options?: WorkerOptions) {
+        super(url, options);
+        this.addEventListener("message", (event: MessageEvent<WorkerReply>) => {
+          const reply = event.data;
+          if (reply.kind === "automatic" && reply.ok)
+            log.results.push({ centers: Array.from(reply.centers), analysis: reply.analysis });
+        });
+      }
+      override postMessage(
+        message: unknown,
+        transferOrOptions?: Transferable[] | StructuredSerializeOptions,
+      ): void {
+        const request = message as { kind?: string; threshold: number; k: number };
+        if (request.kind === "preview")
+          log.previews.push({ threshold: request.threshold, k: request.k });
+        if (
+          request.kind === "automatic" &&
+          (window as unknown as { failAutomatic?: boolean }).failAutomatic
+        ) {
+          queueMicrotask(() =>
+            this.dispatchEvent(
+              new MessageEvent("message", {
+                data: {
+                  id: (message as { id: number }).id,
+                  kind: "automatic",
+                  ok: false,
+                  error: "Injected worker failure",
+                },
+              }),
+            ),
+          );
+          return;
+        }
+        if (Array.isArray(transferOrOptions)) super.postMessage(message, transferOrOptions);
+        else super.postMessage(message, transferOrOptions);
+      }
+    };
+  });
 });
 
-test("saloon entrance supports keyboard access and reveals the counter", async ({ page }) => {
-  await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Red Dead Cell Counter" })).toBeVisible();
-  await expect(page.getByLabel("Analysis controls")).toBeHidden();
+test("native image picker opens the workbench without counting", async ({ page }) => {
+  await open(page);
+  await expect(page.locator("#counter")).toBeHidden();
+  await expect(page.getByRole("button", { name: "Try an example", exact: true })).toBeVisible();
   await page.keyboard.press("Tab");
-  await expect(page.getByRole("button", { name: "Enter saloon" })).toBeFocused();
+  const choose = page.getByRole("button", { name: "Choose images", exact: true });
+  await expect(choose).toBeFocused();
+  const chosen = page.waitForEvent("filechooser");
   await page.keyboard.press("Enter");
-  await expect(page.getByRole("button", { name: "Enter saloon" })).toBeHidden();
-  await expect(page.getByRole("heading", { name: "Red Dead Cell Counter" })).toBeFocused();
-  await expect(page.getByRole("heading", { name: "No cells on the board" })).toBeVisible();
+  const chooser = await chosen;
+  expect(chooser.isMultiple()).toBe(true);
+  await chooser.setFiles(a501);
+  await expect(page.locator("#counter")).toBeVisible();
+  await expect(page.locator("#counter-title")).toBeFocused();
+  await expect(page.locator("#saloon-gate")).toBeHidden();
+  await expect(page.locator("#rows tr")).toHaveCount(1);
+  await expect(page.locator("#rows tr")).toContainText("Pending");
+  await expect(page.locator("#selected-image-count")).toHaveText("--");
+  await expect(page.getByRole("button", { name: "Count cells", exact: true })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Download CSV", exact: true })).toBeDisabled();
+  await expect(page.getByLabel("Cell diameter (px)")).toBeHidden();
+  expect((await workerLog(page)).results).toHaveLength(0);
+  const next = page.waitForEvent("filechooser");
+  await page.locator("#choose-more-images").click();
+  await (await next).setFiles(a501);
+  await expect(page.locator("#rows tr")).toContainText("Pending");
 });
 
-test("researcher can count a real PI image and download its CSV result", async ({ page }) => {
-  await open(page, "batch");
-  await expect(page.getByRole("heading", { name: "Red Dead Cell Counter" })).toBeVisible();
-
-  await picker(page).setInputFiles(await a501Payload());
-  await expect(page.getByRole("status")).toHaveText("1 image selected.");
-  await page.getByRole("button", { name: "Analyze images" }).click();
-  await expect(page.getByRole("status")).toHaveText("Analysis complete.", { timeout: 60_000 });
-  await expect(page.getByRole("row", { name: /A501\.jpg/ })).toContainText("Done");
-  await expect(
-    page.locator("#rows tr").filter({ hasText: "A501.jpg" }).locator("td").nth(1),
-  ).toHaveText(/^[1-9]\d*$/);
-  await expect(page.locator("canvas")).toHaveAttribute("width", "4249");
-  await expect(page.locator("canvas")).toHaveAttribute("height", "4258");
-
-  await page.getByLabel("DoG k").fill("6");
-  const download = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Download CSV" }).click();
-  const csv = await download;
-  expect(csv.suggestedFilename()).toBe("dead-cell-counts.csv");
-  const content = await csvContent(csv);
-  expect(content).toContain(
-    "filename,width,height,count,status,error,diameter_px,k,threshold,algorithm_version",
-  );
-  expect(content).toContain('"A501.jpg","4249","4258",');
-  expect(content).toContain(',"done","","10.00","4.00","0.10000","dog-picker-1"');
-});
-
-test("bad files fail without preventing a valid batch result", async ({ page }) => {
-  await open(page, "batch");
-  await page
-    .getByLabel(/^Choose images?$/)
-    .setInputFiles([
-      { name: "not-an-image.jpg", mimeType: "image/jpeg", buffer: Buffer.from("not an image") },
-      await a501Payload(),
-    ]);
-  await page.getByRole("button", { name: "Analyze images" }).click();
-  await expect(page.getByRole("status")).toHaveText("Analysis complete.", { timeout: 60_000 });
-  await expect(page.getByRole("row", { name: /not-an-image\.jpg/ })).toContainText(/failed|image/i);
-  await expect(page.getByRole("row", { name: /A501\.jpg/ })).toContainText("Done");
-});
-
-test("cancellation during image preparation completes without a worker request", async ({
+test("Try example lazily counts the real image through the same automatic pipeline", async ({
   page,
 }) => {
-  await open(page, "batch");
+  const examples: string[] = [];
+  page.on("request", (request) => {
+    if (/example_a501\.jpg/.test(request.url())) examples.push(request.url());
+  });
+  await open(page);
+  expect(examples).toHaveLength(0);
+  await page.getByRole("button", { name: "Try an example", exact: true }).click();
+  await expect(page.locator("#rows tr")).toContainText("Done", { timeout: 60_000 });
+  const example = (await workerLog(page)).results[0];
+  expect(example).toBeDefined();
+  expect(examples).toHaveLength(1);
   await picker(page).setInputFiles(a501);
-  await page.getByRole("button", { name: "Analyze images" }).click();
-  await page.getByRole("button", { name: "Cancel", exact: true }).click();
-  await expect(page.getByRole("status")).toHaveText("Batch cancelled.", { timeout: 60_000 });
+  await expect(page.locator("#rows tr")).toContainText("Pending");
+  await count(page);
+  expect((await workerLog(page)).results[1]).toEqual(example);
+});
+
+test("automatic results and CSV preserve each saved cutoff after manual controls change", async ({
+  page,
+}) => {
+  await open(page);
+  await picker(page).setInputFiles(await realImageCrop(page));
+  await count(page);
+  const saved = (await workerLog(page)).results[0]!;
+  expect(saved.analysis.mode).toBe("automatic");
+  expect(saved.analysis.reviewReasons).toContain("provisional_calibration");
+  expect(saved.analysis.settings.diameter).toBe(10);
+  expect(saved.analysis.settings.k).toBe(4);
+  expect(saved.analysis.settings.threshold).toBeGreaterThan(0);
+  await expect(page.locator("#analysis-notice")).toContainText("Automatic estimate");
+  await advanced(page);
+  await page.getByLabel("DoG k", { exact: true }).fill("6");
+  await page.getByLabel("Response threshold").fill("0.50000");
+  await expect(page.locator("#selected-image-details")).toContainText("Controls changed");
+  await page.getByLabel("Show detections").uncheck();
+  await page.getByRole("tab", { name: "DoG", exact: true }).click();
+  await expect(page.locator("#image-view-status")).toContainText("k 4.00");
+  await page.getByRole("tab", { name: "Threshold", exact: true }).click();
+  await expect(page.locator("#image-view-status")).toContainText(
+    saved.analysis.settings.threshold.toFixed(5),
+  );
+  expect((await workerLog(page)).previews.slice(-1)[0]).toEqual({
+    k: 4,
+    threshold: saved.analysis.settings.threshold,
+  });
+  const [row] = await csvRows(page);
+  expect(row).toMatchObject({
+    count: String(saved.centers.length / 2),
+    status: "completed",
+    diameter_px: "10.00",
+    k: "4.00",
+    threshold: saved.analysis.settings.threshold.toFixed(5),
+    algorithm_version: saved.analysis.version,
+    method: saved.analysis.method,
+    mode: "automatic",
+    review_reasons: saved.analysis.reviewReasons.join("; "),
+    no_signal: String(saved.analysis.noSignal),
+  });
+});
+
+test("automatic counts depend on each image, independent of batch order and filenames", async ({
+  page,
+}) => {
+  await open(page);
+  const first = await realImageCrop(page, 128);
+  const second = await realImageCrop(page, 320);
+  const singles: AutomaticResult[] = [];
+  for (const image of [first, second]) {
+    await picker(page).setInputFiles(image);
+    await count(page);
+    singles.push((await workerLog(page)).results.slice(-1)[0]!);
+  }
+  const renamed = [
+    { ...second, name: '=first,"sample".png' },
+    { ...first, name: "second.png" },
+  ];
+  await picker(page).setInputFiles(renamed);
+  await advanced(page);
+  await page.getByLabel("Cell diameter (px)", { exact: true }).fill("10");
+  await page.getByLabel("DoG k", { exact: true }).fill("4");
+  await page.getByLabel("Response threshold").fill("0.7");
+  await count(page);
+  expect((await workerLog(page)).results.slice(-2)).toEqual(singles.slice().reverse());
+  const rows = await csvRows(page);
+  expect(rows.map((row) => row.filename)).toEqual(['\'=first,"sample".png', "second.png"]);
+  expect(rows.map((row) => row.threshold)).toEqual(
+    singles
+      .slice()
+      .reverse()
+      .map((result) => result.analysis.settings.threshold.toFixed(5)),
+  );
+});
+
+test("all supplied images receive their own automatic count and review record", async ({
+  page,
+}) => {
+  test.setTimeout(240_000);
+  const names = [
+    "A101.jpg",
+    "A501.jpg",
+    "B301.jpg",
+    "C601.jpg",
+    "E401.jpg",
+    "F201.jpg",
+    "H1001.jpg",
+    "H501.jpg",
+  ];
+  await open(page);
+  await picker(page).setInputFiles(names.map((name) => path.join(process.cwd(), "IMAGES", name)));
+  await count(page);
+  await expect(page.locator("#rows tr")).toHaveCount(8);
+  await expect(page.locator("#rows tr .ok")).toHaveCount(8);
+  const results = (await workerLog(page)).results;
+  expect(results).toHaveLength(8);
+  expect(new Set(results.map((result) => result.analysis.settings.threshold)).size).toBeGreaterThan(
+    1,
+  );
+  const rows = await csvRows(page);
+  expect(rows.map((row) => row.filename)).toEqual(names);
+  for (const [index, row] of rows.entries()) {
+    const result = results[index]!;
+    expect(row).toMatchObject({
+      count: String(result.centers.length / 2),
+      mode: "automatic",
+      status: "completed",
+      threshold: result.analysis.settings.threshold.toFixed(5),
+    });
+    expect(result.analysis.reviewReasons).toContain("provisional_calibration");
+  }
+  await test.info().attach("eight_automatic_results.json", {
+    body: JSON.stringify(names.map((name, index) => ({ name, ...results[index] }))),
+    contentType: "application/json",
+  });
+});
+
+test("bad and blank images do not prevent a valid automatic result", async ({ page }) => {
+  await open(page);
+  const blank = Buffer.from(
+    await page.evaluate(() => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 64;
+      canvas.height = 64;
+      return canvas.toDataURL("image/png").split(",")[1]!;
+    }),
+    "base64",
+  );
+  await picker(page).setInputFiles([
+    { name: "bad.jpg", mimeType: "image/jpeg", buffer: Buffer.from("not an image") },
+    { name: "blank.png", mimeType: "image/png", buffer: blank },
+    await realImageCrop(page),
+  ]);
+  await count(page);
+  const rows = await csvRows(page);
+  expect(rows[0]).toMatchObject({
+    filename: "bad.jpg",
+    status: "failed",
+    count: "",
+    mode: "",
+    threshold: "",
+  });
+  expect(rows[0]!.error).not.toBe("");
+  expect(rows[1]).toMatchObject({
+    filename: "blank.png",
+    status: "completed",
+    count: "0",
+    no_signal: "true",
+    mode: "automatic",
+  });
+  expect(Number(rows[1]!.threshold)).toBeGreaterThan(0);
+  expect(rows[1]!.review_reasons).not.toBe("");
+  expect(rows[2]).toMatchObject({ status: "completed", mode: "automatic" });
+  await page.getByRole("button", { name: "blank.png", exact: true }).click();
+  await expect(page.locator("#analysis-notice")).toContainText(/no (usable|positive).*signal/i);
+  await expect(page.locator("#selected-image-count")).toHaveText("0");
+});
+
+test("failed and cancelled recounts preserve saved rows and allow a fresh retry", async ({
+  page,
+}) => {
+  await page.route("**/worker.js", async (route) => {
+    const response = await route.fetch();
+    await route.fulfill({
+      response,
+      body: `${await response.text()}\nconst originalHandler = self.onmessage; self.onmessage = async event => { await new Promise(resolve => setTimeout(resolve, 200)); return originalHandler.call(self, event); };`,
+    });
+  });
+  await open(page);
+  const crop = await realImageCrop(page, 640);
+  await picker(page).setInputFiles([
+    { ...crop, name: "first.png" },
+    { ...crop, name: "second.png" },
+  ]);
+  await count(page);
+  const before = await csvRows(page);
+  await page.evaluate(() => {
+    (window as unknown as { failAutomatic: boolean }).failAutomatic = true;
+  });
+  await count(page);
+  const failed = await csvRows(page);
+  expect(failed.map((row) => ({ ...row, status: "", error: "" }))).toEqual(
+    before.map((row) => ({ ...row, status: "", error: "" })),
+  );
+  expect(
+    failed.every((row) => row.status === "failed" && row.error === "Injected worker failure"),
+  ).toBe(true);
+  await expect(page.locator("#analysis-notice")).toContainText("previous successful analysis");
+  await page.evaluate(() => {
+    (window as unknown as { failAutomatic: boolean }).failAutomatic = false;
+  });
+  await page.getByRole("button", { name: "Count cells", exact: true }).click();
+  await expect(page.locator("#rows tr").filter({ hasText: "second.png" })).toContainText(
+    "Queued (previous count retained)",
+  );
+  await expect(page.locator("#batch-summary")).toContainText("queued");
+  await page.getByRole("button", { name: "Cancel counting", exact: true }).click();
+  await expect(page.locator("#status")).toContainText(/cancelled/i);
+  const cancelled = await csvRows(page);
+  expect(cancelled.map((row) => ({ ...row, status: "", error: "" }))).toEqual(
+    before.map((row) => ({ ...row, status: "", error: "" })),
+  );
+  expect(cancelled.some((row) => row.status === "cancelled")).toBe(true);
+  await expect(page.locator("#batch-summary")).toContainText("2 of 2");
+  await count(page);
+  expect(await csvRows(page)).toEqual(before);
 });
 
 test("worker finds the two known synthetic blobs and returns stable preview planes", async ({
@@ -245,7 +478,16 @@ test("worker finds the two known synthetic blobs and returns stable preview plan
       };
       const rgba = image();
       worker.postMessage(
-        { id: 1, rgba: rgba.buffer, width, height, diameter: 8, k: 3, threshold: 0.01 },
+        {
+          kind: "detect",
+          id: 1,
+          rgba: rgba.buffer,
+          width,
+          height,
+          diameter: 8,
+          k: 3,
+          threshold: 0.01,
+        },
         [rgba.buffer],
       );
     });
@@ -258,146 +500,12 @@ test("worker finds the two known synthetic blobs and returns stable preview plan
   expect(reply.thresholdIsBinary).toBe(true);
 });
 
-test("comparison applies one real-image setting to a subsequent batch CSV", async ({ page }) => {
-  test.setTimeout(90_000);
-  await open(page);
-  const crop = await realImageCrop(page);
-  await picker(page).setInputFiles(crop);
-  await expect(page.getByRole("status")).toHaveText("1 image selected.");
-
-  const runs = page.getByLabel("Comparison runs");
-  await expect(runs).toHaveAttribute("min", "15");
-  await expect(runs).toHaveAttribute("max", "100");
-  await expect(runs).toHaveValue("21");
-
-  await page.getByRole("button", { name: "Compare settings" }).click();
-  const comparisonRows = page.locator("#comparison-rows tr");
-  await expect(comparisonRows).toHaveCount(21, { timeout: 80_000 });
-  const appliedRow = comparisonRows
-    .filter({ hasText: "Factorial" })
-    .filter({ has: page.getByRole("button", { name: "Apply" }) })
-    .first();
-  const values = await appliedRow
-    .locator("td")
-    .evaluateAll((cells) => cells.slice(0, 3).map((cell) => cell.textContent ?? ""));
-  expect(values).toEqual([
-    expect.stringMatching(/^\d+\.\d{2}$/),
-    expect.stringMatching(/^\d+\.\d{2}$/),
-    expect.stringMatching(/^\d+\.\d{5}$/),
-  ]);
-  await appliedRow.getByRole("button", { name: "Apply" }).click();
-  const appliedValues = await Promise.all(
-    ["Cell diameter (px)", "DoG k", "Response threshold"].map((label) =>
-      page.getByLabel(label).inputValue(),
-    ),
-  );
-  expect(appliedValues).toEqual(values);
-  await page.getByRole("button", { name: "Use settings for batch", exact: true }).click();
-  await expect(page.getByRole("radio", { name: "Batch", exact: true })).toBeChecked();
-  await picker(page).setInputFiles([
-    { ...crop, name: "crop-one.png" },
-    { ...crop, name: "crop-two.png" },
-  ]);
-  await page.getByRole("button", { name: "Analyze images" }).click();
-  await expect(page.getByRole("status")).toHaveText("Analysis complete.", { timeout: 80_000 });
-  const download = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Download CSV" }).click();
-  const lines = (await csvContent(await download)).split("\r\n");
-  expect(lines).toHaveLength(3);
-  for (const line of lines.slice(1)) {
-    const fields = line.split(",").map((field) => field.replace(/^"|"$/g, ""));
-    expect(fields.slice(6, 9)).toEqual(appliedValues);
-  }
-});
-
-test("auto-tune compares a real crop before analyzing its batch", async ({ page }) => {
-  test.setTimeout(90_000);
-  await open(page, "batch");
-  const crop = await realImageCrop(page);
-  await picker(page).setInputFiles([
-    { ...crop, name: "auto-one.png" },
-    { ...crop, name: "auto-two.png" },
-  ]);
-  await page.getByRole("button", { name: "Compare, then analyze batch" }).click();
-  await expect(page.getByRole("status")).toHaveText("Analysis complete.", { timeout: 80_000 });
-  await expect(page.locator("#comparison-rows tr")).toHaveCount(21);
-  await expect(page.locator("#rows tr .ok")).toHaveCount(2);
-});
-
-test("all supplied images finish through the browser worker", async ({ page }) => {
-  test.setTimeout(240_000);
-  const names = [
-    "A101.jpg",
-    "A501.jpg",
-    "B301.jpg",
-    "C601.jpg",
-    "E401.jpg",
-    "F201.jpg",
-    "H1001.jpg",
-    "H501.jpg",
-  ];
-  await open(page, "batch");
-  await page
-    .getByLabel(/^Choose images?$/)
-    .setInputFiles(names.map((name) => path.join(process.cwd(), "IMAGES", name)));
-  await expect(page.getByRole("status")).toHaveText(`${names.length} images selected.`);
-  const started = Date.now();
-  await page.getByRole("button", { name: "Analyze images" }).click();
-  await expect(page.getByRole("status")).toHaveText("Analysis complete.", { timeout: 230_000 });
-  await expect(page.locator("#rows tr")).toHaveCount(names.length);
-  for (const name of names) {
-    const row = page.locator("#rows tr").filter({ hasText: name });
-    await expect(row).toContainText("Done");
-    await expect(row.locator("td").nth(1)).toHaveText(/^\d{1,3}(,\d{3})*$/);
-  }
-  await expect(
-    page.locator("#rows tr").filter({ hasText: "H501.jpg" }).locator("td").nth(1),
-  ).toHaveText("3,021");
-  await test.info().attach("eight-real-images-timing.txt", {
-    body: `${Date.now() - started} ms\n`,
-    contentType: "text/plain",
-  });
-  await page.screenshot({ path: "/private/tmp/red-cell-experiment/browser.png", fullPage: true });
-});
-
-test("96-image batch produces one completed row per image and a CSV", async ({ page }) => {
-  test.setTimeout(240_000);
-  const files = Array.from({ length: 96 }, () => a501);
-  await open(page, "batch");
-  await picker(page).setInputFiles(files);
-  await expect(page.getByRole("status")).toHaveText("96 images selected.");
-  await page.getByRole("button", { name: "Analyze images" }).click();
-  await expect(page.getByRole("status")).toHaveText("Analysis complete.", { timeout: 230_000 });
-  await expect(page.locator("#rows tr")).toHaveCount(96);
-  await expect(page.locator("#rows tr .ok")).toHaveCount(96);
-  const download = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Download CSV" }).click();
-  expect((await download).suggestedFilename()).toBe("dead-cell-counts.csv");
-});
-
-test("cancellation stops a queued batch", async ({ page }) => {
-  test.setTimeout(90_000);
-  const source = await a501Payload();
-  await open(page, "batch");
-  await picker(page).setInputFiles([
-    { ...source, name: "first.jpg" },
-    { ...source, name: "second.jpg" },
-  ]);
-  await page.getByRole("button", { name: "Analyze images" }).click();
-  await expect(page.getByRole("button", { name: "Cancel", exact: true })).toBeEnabled();
-  await expect(page.getByRole("radio", { name: "Single image", exact: true })).toBeDisabled();
-  await expect(page.getByRole("radio", { name: "Batch", exact: true })).toBeDisabled();
-  await page.getByRole("button", { name: "Cancel", exact: true }).click();
-  await expect(page.getByRole("status")).toHaveText("Batch cancelled.", { timeout: 80_000 });
-  await expect(page.getByRole("radio", { name: "Single image", exact: true })).toBeEnabled();
-  await expect(page.getByRole("radio", { name: "Batch", exact: true })).toBeEnabled();
-});
-
 test("zoom exposes individual picks and returns to a fitted overview", async ({ page }) => {
   await open(page);
   await picker(page).setInputFiles(a501);
-  await page.getByRole("button", { name: "Analyze selected image", exact: true }).click();
-  await expect(page.locator("#status")).toHaveText("Selected image analysis complete.");
+  await advanced(page);
+  await page.locator("#analyze-selected").click();
+  await expect(page.locator("#status")).toContainText("Selected image manual counting finished");
   await page.getByRole("button", { name: "Actual pixels", exact: true }).click();
   const canvas = page.locator("#image");
   await expect
@@ -420,10 +528,6 @@ test("zoom exposes individual picks and returns to a fitted overview", async ({ 
     const scale = image.getBoundingClientRect().width / image.width;
     wrap.scrollLeft = 3688 * scale - wrap.clientWidth / 2;
     wrap.scrollTop = 3326 * scale - wrap.clientHeight / 2;
-  });
-  await page.screenshot({
-    path: "/private/tmp/red-cell-experiment/feedback-zoom.png",
-    fullPage: true,
   });
   await page.getByRole("button", { name: "Fit image", exact: true }).click();
   expect(
@@ -449,6 +553,7 @@ test("viewer tabs retain the analyzed settings and render raw, DoG, and threshol
   await open(page);
   const crop = await realImageCrop(page, 128);
   await picker(page).setInputFiles(crop);
+  await advanced(page);
   await expect(page.locator("#image")).toBeVisible();
   await expect(page.locator("#image-view-status")).toHaveText("Raw original RGB image.");
   expect(
@@ -460,8 +565,8 @@ test("viewer tabs retain the analyzed settings and render raw, DoG, and threshol
       }).some(Boolean);
     }),
   ).toBe(true);
-  await page.getByRole("button", { name: "Analyze selected image", exact: true }).click();
-  await expect(page.getByRole("status")).toHaveText("Selected image analysis complete.");
+  await page.locator("#analyze-selected").click();
+  await expect(page.locator("#status")).toContainText("Selected image manual counting finished");
   await page.getByLabel("Show detections").uncheck();
 
   const raw = page.getByRole("tab", { name: "Raw", exact: true });
@@ -520,6 +625,7 @@ test("dragging pans each image view and releases cleanly without blocking keyboa
 }) => {
   await open(page);
   await picker(page).setInputFiles(await realImageCrop(page, 128));
+  await count(page);
   const canvas = page.locator("#image");
   const viewport = page.getByRole("region", { name: "Image inspection viewport" });
   await expect(canvas).toBeVisible();
@@ -590,43 +696,17 @@ test("a delayed derived preview cannot replace a newly chosen source image", asy
   const first = await realImageCrop(page, 128);
   const second = await realImageCrop(page, 160);
   await picker(page).setInputFiles(first);
-  await page.getByRole("button", { name: "Analyze selected image", exact: true }).click();
-  await expect(page.getByRole("status")).toHaveText("Selected image analysis complete.");
+  await advanced(page);
+  await page.locator("#analyze-selected").click();
+  await expect(page.locator("#status")).toContainText("Selected image manual counting finished");
   await page.getByRole("tab", { name: "DoG", exact: true }).click();
   await expect(page.locator("#image-view-status")).toContainText("Loading DoG response");
   await picker(page).setInputFiles(second);
+  await advanced(page);
   await expect(page.locator("#image-view-status")).toHaveText("Raw original RGB image.");
   await expect(page.locator("#image")).toHaveAttribute("width", "160");
-  await expect(page.getByRole("tab", { name: "Raw", exact: true })).toHaveAttribute(
-    "aria-selected",
-    "true",
-  );
-});
-
-test("comparison reports progress, explains its recommendation, and confirms applied settings", async ({
-  page,
-}) => {
-  await open(page);
-  const crop = await realImageCrop(page);
-  await picker(page).setInputFiles(crop);
-  await page.getByRole("button", { name: "Compare settings", exact: true }).click();
-  await expect(page.locator("#comparison-progress")).toBeVisible();
-  await expect(page.locator("#comparison-status")).toHaveAttribute("aria-live", "polite");
-  await expect(page.locator("#comparison-progress")).toHaveAttribute("value", "21", {
-    timeout: 80_000,
-  });
-  await expect(
-    page.getByRole("button", { name: "Use settings for batch", exact: true }),
-  ).toBeEnabled();
-  await expect(page.locator("#comparison-recommendation")).toContainText(/diameter/i);
-  await expect(page.locator("#comparison-recommendation")).toContainText(/threshold/i);
-  await expect(page.locator("#comparison-rows")).toContainText("Recommended");
-  await expect(page.locator("#comparison-rows")).toContainText("Applied");
-  await expect(page.locator("#comparison-rows")).toContainText("Supplemental");
-  await page.screenshot({
-    path: "/private/tmp/red-cell-experiment/comparison-feedback.png",
-    fullPage: true,
-  });
+  await expect(page.locator("#image-view-tools")).toBeHidden();
+  await expect(page.locator("#raw-view")).toHaveAttribute("aria-selected", "true");
 });
 
 test("comparison supports 100 real-image runs and summarizes their visible counts", async ({
@@ -635,17 +715,44 @@ test("comparison supports 100 real-image runs and summarizes their visible count
   test.setTimeout(45_000);
   await open(page);
   const crop = await realImageCrop(page, 128);
-  await picker(page).setInputFiles(crop);
+  await picker(page).setInputFiles([
+    { ...crop, name: "selected.png" },
+    { ...crop, name: "untouched.png" },
+  ]);
+  await advanced(page);
+  await page.locator("#analyze-selected").click();
+  await expect(page.locator("#status")).toContainText("Selected image manual counting finished");
+  const manual = await csvRows(page);
+  expect(manual[0]).toMatchObject({ mode: "manual", method: "manual", threshold: "0.10000" });
+  expect(manual[1]).toMatchObject({
+    status: "waiting",
+    count: "",
+    threshold: "",
+    method: "",
+    mode: "",
+    review_reasons: "",
+    no_signal: "",
+  });
+  await page.getByLabel("Comparison runs").fill("14");
+  await page.locator("#compare").click();
+  await expect(page.locator("#status")).toContainText(/15.*100/);
   await page.getByLabel("Comparison runs").fill("101");
-  await page.getByRole("button", { name: "Compare settings", exact: true }).click();
-  await expect(page.getByRole("status")).toContainText(/15.*100/);
+  await advanced(page);
+  await page.locator("#compare").click();
+  await expect(page.locator("#status")).toContainText(/15.*100/);
   await expect(page.locator("#comparison-rows tr")).toHaveCount(0);
 
   await page.getByLabel("Comparison runs").fill("100");
-  await page.getByRole("button", { name: "Compare settings", exact: true }).click();
+  await page.locator("#compare").click();
 
   const rows = page.locator("#comparison-rows tr");
   await expect(rows).toHaveCount(100, { timeout: 40_000 });
+  await expect(page.locator("#rows tr").filter({ hasText: "untouched.png" })).toContainText(
+    "Pending",
+  );
+  const compared = await csvRows(page);
+  expect(compared[0]!.mode).toBe("manual");
+  expect(compared[1]).toEqual(manual[1]);
   await expect(page.locator("#comparison-progress")).toHaveAttribute("max", "100");
   await expect(page.locator("#comparison-progress")).toHaveAttribute("value", "100");
   const countTexts = await rows.locator("td:nth-child(4)").allTextContents();
@@ -675,6 +782,7 @@ test("cancelled comparison preserves partial progress rather than claiming compl
   await open(page);
   const crop = await realImageCrop(page);
   await picker(page).setInputFiles(crop);
+  await advanced(page);
   await page.route("**/worker.js", async (route) => {
     const response = await route.fetch();
     await route.fulfill({
@@ -682,7 +790,7 @@ test("cancelled comparison preserves partial progress rather than claiming compl
       body: `${await response.text()}\nconst originalHandler = self.onmessage; self.onmessage = async event => { await new Promise(resolve => setTimeout(resolve, 60)); return originalHandler.call(self, event); };`,
     });
   });
-  await page.getByRole("button", { name: "Compare settings", exact: true }).click();
+  await page.locator("#compare").click();
   await expect
     .poll(async () => Number(await page.locator("#comparison-progress").getAttribute("value")))
     .toBeGreaterThanOrEqual(2);
@@ -692,7 +800,7 @@ test("cancelled comparison preserves partial progress rather than claiming compl
   expect(completed).toBeGreaterThanOrEqual(2);
   expect(completed).toBeLessThan(21);
   await expect(page.locator("#comparison-rows tr")).toHaveCount(completed);
-  await expect(page.getByRole("button", { name: "Compare settings", exact: true })).toBeEnabled();
+  await expect(page.locator("#compare")).toBeEnabled();
 });
 
 test("comparison requires a threshold above 0.00001 and keeps small valid values", async ({
@@ -701,20 +809,22 @@ test("comparison requires a threshold above 0.00001 and keeps small valid values
   await open(page);
   const crop = await realImageCrop(page);
   await picker(page).setInputFiles(crop);
+  await advanced(page);
   await page.getByLabel("Response threshold").fill("0.00001");
-  await page.getByRole("button", { name: "Compare settings", exact: true }).click();
-  await expect(page.getByRole("status")).toContainText(/threshold above 0\.00001/i);
+  await page.locator("#compare").click();
+  await expect(page.locator("#status")).toContainText(/threshold above 0\.00001/i);
   await expect(page.locator("#comparison-rows tr")).toHaveCount(0);
 
+  await page.getByLabel("Comparison runs").fill("15");
   await page.getByLabel("Response threshold").fill("0.00002");
-  await page.getByRole("button", { name: "Compare settings", exact: true }).click();
-  await expect(page.locator("#comparison-status")).toContainText("21 successful", {
+  await page.locator("#compare").click();
+  await expect(page.locator("#comparison-status")).toContainText("15 successful", {
     timeout: 80_000,
   });
   const thresholds = (
     await page.locator("#comparison-rows tr td:nth-child(3)").allTextContents()
   ).map(Number);
-  expect(thresholds).toHaveLength(21);
+  expect(thresholds).toHaveLength(15);
   expect(Math.min(...thresholds)).toBeGreaterThan(0);
   expect(Math.max(...thresholds)).toBeLessThan(0.001);
   await expect(page.locator("#comparison-rows")).toContainText("Center");
@@ -727,98 +837,4 @@ test("comparison requires a threshold above 0.00001 and keeps small valid values
       await page.locator(`#${id}`).evaluate((input: HTMLInputElement) => input.validity.valid),
     ).toBe(true);
   }
-});
-
-test("single and batch modes separate their workflows while preserving a handoff", async ({
-  page,
-}) => {
-  test.setTimeout(90_000);
-  await open(page);
-  const single = page.getByRole("radio", { name: "Single image", exact: true });
-  const batch = page.getByRole("radio", { name: "Batch", exact: true });
-  await expect(single).toBeChecked();
-  await expect(picker(page)).not.toHaveAttribute("multiple");
-  await expect(page.getByRole("button", { name: "Compare settings", exact: true })).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Analyze selected image", exact: true }),
-  ).toBeVisible();
-  await expect(page.getByRole("button", { name: "Analyze images", exact: true })).toBeHidden();
-  await expect(page.getByRole("button", { name: "Download CSV", exact: true })).toBeHidden();
-  await expect(page.locator(".results-panel")).toBeHidden();
-
-  await single.focus();
-  await page.keyboard.press("ArrowRight");
-  await expect(batch).toBeChecked();
-  await expect(picker(page)).toHaveAttribute("multiple", "");
-  await expect(page.getByRole("button", { name: "Compare settings", exact: true })).toBeHidden();
-  await expect(
-    page.getByRole("button", { name: "Analyze selected image", exact: true }),
-  ).toBeHidden();
-  await expect(page.getByRole("button", { name: "Analyze images", exact: true })).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Compare, then analyze batch", exact: true }),
-  ).toBeVisible();
-  await expect(page.getByRole("button", { name: "Download CSV", exact: true })).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Tune selected image", exact: true }),
-  ).toBeVisible();
-
-  const crop = await realImageCrop(page, 128);
-  await picker(page).setInputFiles([
-    { ...crop, name: "first.png" },
-    { ...crop, name: "second.png" },
-  ]);
-  await expect(page.locator("#image-selection-summary")).toHaveText("2 images selected.");
-  await expect(page.locator("#batch-summary")).toContainText("0 of 2 counted");
-  await page.getByRole("button", { name: "Tune selected image", exact: true }).click();
-  await expect(single).toBeChecked();
-  await expect(page.locator("#image-selection-summary")).toHaveText("Selected: first.png");
-  expect(await picker(page).evaluate((input: HTMLInputElement) => input.files?.length)).toBe(2);
-  await expect(page.getByRole("button", { name: "Compare settings", exact: true })).toBeEnabled();
-  await page.getByRole("button", { name: "Analyze selected image", exact: true }).click();
-  await expect(page.getByRole("status")).toHaveText("Selected image analysis complete.");
-  const selectedCountText = await page.locator("#selected-image-count").textContent();
-  if (selectedCountText === null || selectedCountText === "--")
-    throw new Error("The selected image count is missing.");
-  await expect(page.locator("#selected-image-count")).toHaveText(selectedCountText);
-  await expect(page.locator("#selected-image-details")).toContainText("Counted with diameter");
-  await expect(page.locator("#selected-image-details")).toContainText("128");
-
-  await page.getByLabel("DoG k").fill("6");
-  await expect(page.locator("#selected-image-details")).toContainText("Controls changed");
-  await expect(page.locator("#selected-image-count")).toHaveText(selectedCountText);
-  await page.getByLabel("DoG k").fill("4");
-  await page.getByRole("button", { name: "Compare settings", exact: true }).click();
-  await expect(page.locator("#comparison-progress")).toHaveAttribute("value", "21", {
-    timeout: 80_000,
-  });
-  const appliedCountText = await page.locator("#selected-image-count").textContent();
-  if (appliedCountText === null || appliedCountText === "--")
-    throw new Error("The applied comparison count is missing.");
-  const appliedValues = await Promise.all(
-    ["diameter", "k", "threshold"].map((id) => page.locator(`#${id}`).inputValue()),
-  );
-  await expect(page.locator("#comparison-highlights")).toBeVisible();
-  const footerValues = await page
-    .locator("#comparison-statistics tr td:nth-child(2)")
-    .allTextContents();
-  await expect(page.locator("#comparison-mean")).toHaveText(footerValues[0] ?? "");
-  await expect(page.locator("#comparison-median")).toHaveText(footerValues[1] ?? "");
-  await expect(page.locator("#comparison-sd")).toHaveText(footerValues[2] ?? "");
-  await page.getByRole("button", { name: "Use settings for batch", exact: true }).click();
-  await expect(batch).toBeChecked();
-  expect(await picker(page).evaluate((input: HTMLInputElement) => input.files?.length)).toBe(2);
-  await expect
-    .poll(async () =>
-      Promise.all(["diameter", "k", "threshold"].map((id) => page.locator(`#${id}`).inputValue())),
-    )
-    .toEqual(appliedValues);
-  await expect(page.locator("#rows tr")).toHaveCount(2);
-  await expect(page.locator("#rows tr").first().locator("td").nth(1)).toHaveText(appliedCountText);
-  const download = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Download CSV", exact: true }).click();
-  const csv = await csvContent(await download);
-  expect(csv).toContain('"first.png"');
-  expect(csv).toContain('"second.png"');
-  await expect(page.getByRole("button", { name: "Analyze images", exact: true })).toBeEnabled();
 });

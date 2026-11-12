@@ -5,12 +5,6 @@ export type ViewerOverlay = (
   height: number,
 ) => void;
 type ViewKind = "raw" | "dog" | "threshold";
-type PreviewReply = {
-  id: number;
-  dogImage?: Uint8Array;
-  thresholdImage?: Uint8Array;
-  error?: string;
-};
 type Projection = {
   file: File;
   settings: ViewerSettings;
@@ -203,11 +197,11 @@ export function createImageViewer(elements: ViewerElements): {
     const requestId = currentToken;
     const requestWorker = new Worker(new URL("./worker.js", import.meta.url), { type: "module" });
     previewWorker = requestWorker;
-    let reply: PreviewReply;
+    let reply: PreviewWorkerReply;
     try {
-      reply = await new Promise<PreviewReply>(function waitForPreview(resolve, reject): void {
-        function receive(event: MessageEvent<PreviewReply>): void {
-          if (event.data.id === requestId) {
+      reply = await new Promise<PreviewWorkerReply>(function waitForPreview(resolve, reject): void {
+        function receive(event: MessageEvent<PreviewWorkerReply>): void {
+          if (event.data.kind === "preview" && event.data.id === requestId) {
             pendingPreviewReject = undefined;
             resolve(event.data);
           }
@@ -219,26 +213,22 @@ export function createImageViewer(elements: ViewerElements): {
         pendingPreviewReject = reject;
         requestWorker.addEventListener("message", receive, { once: true });
         requestWorker.addEventListener("error", failed, { once: true });
-        requestWorker.postMessage(
-          {
-            kind: "preview",
-            id: requestId,
-            rgba: rgba.buffer,
-            width: source.width,
-            height: source.height,
-            ...settings,
-          },
-          [rgba.buffer],
-        );
+        const request: PreviewWorkerRequest = {
+          kind: "preview",
+          id: requestId,
+          rgba: rgba.buffer,
+          width: source.width,
+          height: source.height,
+          ...settings,
+        };
+        requestWorker.postMessage(request, [rgba.buffer]);
       });
     } finally {
       requestWorker.terminate();
       if (previewWorker === requestWorker) previewWorker = undefined;
     }
     if (currentToken !== token) return;
-    if (reply.error || !reply.dogImage || !reply.thresholdImage) {
-      throw new Error(reply.error ?? "Preview processing failed.");
-    }
+    if (!reply.ok) throw new Error(reply.error);
     projection = {
       file,
       settings,
@@ -264,6 +254,7 @@ export function createImageViewer(elements: ViewerElements): {
     } catch (error: unknown) {
       if (renderToken === token) {
         const message = error instanceof Error ? error.message : "Preview failed.";
+        elements.canvas.hidden = true;
         elements.caption.textContent = "Preview unavailable.";
         elements.setStatus(message);
       }
@@ -324,6 +315,8 @@ export function createImageViewer(elements: ViewerElements): {
       }
       if (newFile) {
         endPan();
+        elements.canvas.hidden = true;
+        elements.caption.textContent = "Loading image...";
         projection = undefined;
         selectTab("raw");
       }
@@ -358,3 +351,4 @@ export function createImageViewer(elements: ViewerElements): {
     },
   };
 }
+import type { PreviewWorkerReply, PreviewWorkerRequest } from "./analysis_types.js";

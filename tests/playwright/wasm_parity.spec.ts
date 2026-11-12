@@ -1,7 +1,7 @@
 /// <reference types="node" />
 import { expect, test } from "@playwright/test";
 
-type WorkerReply = { id: number; centers?: ArrayLike<number>; error?: string };
+type WorkerReply = { id: number; ok: boolean; centers?: ArrayLike<number>; error?: string };
 
 test("prepared worker image agrees with fresh detection and rejects stale image state", async ({
   page,
@@ -13,8 +13,9 @@ test("prepared worker image agrees with fresh detection and rejects stale image 
     const second = image(48, 40, [13, 12, 255]);
     const third = image(32, 24, [16, 12, 255]);
     const worker = new Worker("worker.js", { type: "module" });
-    const request = (payload: Record<string, unknown>): Promise<WorkerReply> =>
+    const request = (input: Record<string, unknown>): Promise<WorkerReply> =>
       new Promise((resolve) => {
+        const payload: Record<string, unknown> = { kind: "detect", ...input };
         const id = payload.id as number;
         const receive = (event: MessageEvent<WorkerReply>): void => {
           if (event.data.id !== id) return;
@@ -91,10 +92,12 @@ test("prepared worker image agrees with fresh detection and rejects stale image 
       return rgba;
     }
   });
+  expect(result.initial.ok).toBe(true);
   expect(result.initial.error).toBeUndefined();
   expect(Array.from(result.initial.centers ?? [])).toEqual([10, 10, 27, 18, 38, 30]);
   expect(result.reused.error).toBeUndefined();
   expect(Array.from(result.reused.centers ?? [])).toEqual(Array.from(result.fresh.centers ?? []));
+  expect(result.mismatch.ok).toBe(false);
   expect(result.mismatch.error).toContain("dimensions");
   expect(result.replacement.error).toBeUndefined();
   expect(Array.from(result.replacement.centers ?? [])).toEqual([13, 12]);

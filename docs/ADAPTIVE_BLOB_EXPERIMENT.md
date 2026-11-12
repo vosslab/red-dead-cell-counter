@@ -12,7 +12,7 @@ This completes the experimental decision under
 [adaptive_blob_processing_plan.md](active_plans/active/adaptive_blob_processing_plan.md).
 [adaptive_blob_processing_progress.md](active_plans/active/adaptive_blob_processing_progress.md)
 records execution and final integration status. The broader
-[automatic_image_counting_plan.md](active_plans/active/automatic_image_counting_plan.md) remains
+[automatic_image_counting_plan.md](archive/automatic_image_counting_plan.md) remains
 open. Existing reusable Rust/Wasm geometry measurements remain available; they do not become
 shipping cell-acceptance filters.
 

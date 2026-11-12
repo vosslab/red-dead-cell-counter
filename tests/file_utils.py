@@ -683,6 +683,8 @@ def discover_files(
 	  repo-local file/glob exclusions keyed by "all" or a vendored test_key.
 	  This is the home for any repo-specific exclusion, because conftest
 	  survives propagation while vendored files do not.
+	- Only existing files reach Layer 3, because extra_filter callables may
+	  read file contents.
 	- Layer 3, extra_filter (vendored call site): a universal per-test
 	  SELECTION mechanism only (for example keep only __init__.py), never a
 	  home for repo-specific exclusions.
@@ -749,11 +751,11 @@ def discover_files(
 		# Step 7: Layer 2 -- repo-local hygiene excludes from conftest.
 		if any(fnmatch.fnmatchcase(rel, pattern) for pattern in hygiene_patterns):
 			continue
-		# Step 8: Layer 3 -- per-test selection filter on the relative path.
-		if extra_filter is not None and not extra_filter(rel):
-			continue
-		# Step 9: keep only real files.
+		# Step 8: content-reading selection filters need an existing file.
 		if not os.path.isfile(abs_path):
+			continue
+		# Step 9: Layer 3 -- per-test selection filter on the relative path.
+		if extra_filter is not None and not extra_filter(rel):
 			continue
 		matches.append(abs_path)
 

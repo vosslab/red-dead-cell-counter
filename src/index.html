@@ -7,68 +7,217 @@
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
+    <input
+      id="images"
+      class="visually-hidden"
+      type="file"
+      accept="image/jpeg,image/png"
+      multiple
+      tabindex="-1"
+      aria-label="Choose microscopy images"
+    />
     <section id="saloon-gate" class="saloon-gate" aria-labelledby="saloon-title">
       <div class="saloon-intro">
         <p class="eyebrow">A FRONTIER OUTPOST FOR FLUORESCENCE</p>
         <h1 id="saloon-title">Red Dead<br />Cell Counter</h1>
-        <p>Every cell has a story. Count the red ones.</p>
-      </div>
-      <div class="saloon-arrival">
-        <div class="saloon-scene">
-          <button id="enter-saloon" class="saloon-entry" type="button" disabled>
-            <span class="saloon-door left-door" aria-hidden="true"></span>
-            <span class="saloon-door right-door" aria-hidden="true"></span>
-            <span class="entry-label">Enter saloon</span>
+        <p class="saloon-description">
+          Count red, PI-positive dead cells in your microscopy images.
+        </p>
+        <div class="arrival-actions">
+          <button id="choose-images" type="button">Choose images</button>
+          <button id="try-example" type="button" aria-describedby="example-help">
+            Try an example
           </button>
         </div>
+        <p id="example-help" class="example-help">
+          Try an example: load and count a real PI image.
+        </p>
+        <p id="example-status" role="status" aria-live="polite" aria-atomic="true"></p>
+        <p class="arrival-privacy">
+          JPEG or PNG · One image or many · Everything runs in your browser
+        </p>
+        <ol class="arrival-steps" aria-label="How it works">
+          <li><strong>1. Choose images</strong><span>Your images stay on this device.</span></li>
+          <li>
+            <strong>2. Count cells</strong><span>Get an automatic count for each image.</span>
+          </li>
+          <li>
+            <strong>3. Inspect and export</strong><span>Check the markers, then download CSV.</span>
+          </li>
+        </ol>
+      </div>
+      <div class="saloon-arrival">
+        <div class="saloon-scene" aria-hidden="true"></div>
         <aside class="wanted-poster" aria-label="Wanted poster">
           <p class="eyebrow">Wanted</p>
           <img class="skull" src="assets/longhorn_skull.svg" alt="" width="260" height="140" />
           <h2>Red cells</h2>
           <p class="poster-subtitle">PI-POSITIVE</p>
-          <p>Track down PI-positive cells in your microscopy images.</p>
-          <p class="poster-rule">Your images stay on your device.</p>
+          <p>Track down the red cells. Check each count against your image.</p>
         </aside>
       </div>
-      <p class="saloon-footnote">
-        JPEG &amp; PNG &nbsp; / &nbsp; Single images &amp; batches &nbsp; / &nbsp; No uploads
-      </p>
-      <noscript><p>Enable JavaScript to enter the saloon and run the cell counter.</p></noscript>
+      <noscript><p>Enable JavaScript to choose images and run the cell counter.</p></noscript>
     </section>
     <main id="counter" hidden>
       <header class="counter-header">
         <img class="header-skull" src="assets/longhorn_skull.svg" alt="" width="260" height="140" />
         <div class="header-copy">
           <h1 id="counter-title" tabindex="-1">Red Dead Cell Counter</h1>
-          <p>Count red PI-positive cells locally in your browser.</p>
+          <p>Count red PI-positive dead cells locally in your browser.</p>
         </div>
       </header>
-      <fieldset class="workflow-switch">
-        <legend id="workflow-label" class="eyebrow">ANALYSIS MODE</legend>
-        <div class="workflow-options">
-          <label class="workflow-option"
-            ><input id="single-mode" type="radio" name="analysis-mode" value="single" checked />
-            <span>Single image</span></label
-          >
-          <label class="workflow-option"
-            ><input id="batch-mode" type="radio" name="analysis-mode" value="batch" />
-            <span>Batch</span></label
-          >
-        </div>
-        <p id="workflow-help">Tune, inspect, and count one selected image.</p>
-      </fieldset>
-      <section class="controls" aria-label="Analysis controls">
+      <section class="controls" aria-label="Count and export images">
         <section class="control-group image-choice" aria-labelledby="images-step">
-          <p id="images-step" class="control-step">1. Images</p>
-          <label class="file-picker" for="images"
-            ><span id="file-picker-label">Choose image</span
-            ><input id="images" type="file" accept="image/jpeg,image/png"
-          /></label>
+          <p id="images-step" class="control-step">1. Choose images</p>
+          <button id="choose-more-images" type="button">
+            <span id="file-picker-label">Choose images</span>
+          </button>
           <p id="image-selection-summary">No images selected.</p>
+          <p id="workflow-help">
+            Choose one image or several. Count cells processes all selected images.
+          </p>
           <small>JPEG or PNG. Your images stay on this device.</small>
         </section>
+        <section class="control-group counting" aria-labelledby="count-step">
+          <p id="count-step" class="control-step">2. Count cells · 3. Inspect and export</p>
+          <p class="batch-note">
+            Count the selected images, inspect the detection markers, then save the results.
+          </p>
+          <div class="control-actions">
+            <button id="analyze" type="button" disabled>Count cells</button>
+            <button id="cancel" type="button" disabled hidden>Cancel counting</button>
+            <button id="download" type="button" disabled>Download CSV</button>
+          </div>
+        </section>
+      </section>
+      <div class="status-line">
+        <p id="status" role="status" aria-live="polite" aria-atomic="true">
+          Choose one or more JPEG or PNG images to get started.
+        </p>
+      </div>
+      <section class="workspace" aria-label="Counts and image inspection">
+        <div class="results-panel">
+          <p class="eyebrow">THE BOUNTY BOARD</p>
+          <h2>Image counts</h2>
+          <p id="batch-summary" aria-live="polite" aria-atomic="true">No images selected.</p>
+          <table>
+            <caption class="visually-hidden">
+              Counts and processing status for each selected image
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Image</th>
+                <th scope="col">Count</th>
+                <th scope="col">Status</th>
+              </tr>
+            </thead>
+            <tbody id="rows"></tbody>
+          </table>
+          <p id="ledger-empty">Choose images to start your count ledger.</p>
+        </div>
+        <section
+          id="image-inspection"
+          class="image-panel"
+          aria-labelledby="selected-image-name"
+          hidden
+        >
+          <div class="viewer-heading">
+            <div>
+              <p class="eyebrow">IMAGE INSPECTION</p>
+              <h2 id="selected-image-name" tabindex="-1">Image inspection</h2>
+              <p id="selected-image-details">Choose an image to inspect it.</p>
+            </div>
+            <p class="viewer-count">
+              <strong id="selected-image-count">--</strong
+              ><span id="selected-count-label">Not counted</span>
+            </p>
+          </div>
+          <p id="analysis-notice" role="status" aria-live="polite" aria-atomic="true">
+            Select Count cells to get an automatic count. Review the detection markers before using
+            the result.
+          </p>
+          <div id="image-view-tools" class="image-view-tools" hidden>
+            <div class="image-views" role="tablist" aria-label="Image view">
+              <button
+                id="raw-view"
+                type="button"
+                role="tab"
+                aria-selected="true"
+                aria-controls="image-view-panel"
+                tabindex="0"
+                data-view="raw"
+              >
+                Raw
+              </button>
+              <button
+                id="dog-view"
+                type="button"
+                role="tab"
+                aria-selected="false"
+                aria-controls="image-view-panel"
+                tabindex="-1"
+                data-view="dog"
+              >
+                DoG
+              </button>
+              <button
+                id="threshold-view"
+                type="button"
+                role="tab"
+                aria-selected="false"
+                aria-controls="image-view-panel"
+                tabindex="-1"
+                data-view="threshold"
+              >
+                Threshold
+              </button>
+            </div>
+          </div>
+          <div id="image-view-panel" role="tabpanel" aria-labelledby="raw-view">
+            <div id="image-tools" class="image-tools" hidden>
+              <label><input id="markers" type="checkbox" checked /> Show detections</label
+              ><label
+                >Zoom <input id="zoom" type="range" min="25" max="6400" step="any" value="100" />
+                <span id="zoom-value">100%</span></label
+              ><button id="actual-pixels" type="button">Actual pixels</button
+              ><button id="fit-image" type="button">Fit image</button>
+            </div>
+            <div
+              id="canvas-wrap"
+              tabindex="0"
+              role="region"
+              aria-label="Image inspection viewport"
+              aria-describedby="image-navigation-help"
+            >
+              <div id="empty-image" class="empty-image" hidden>
+                <img src="assets/longhorn_skull.svg" alt="" width="260" height="140" />
+                <h2>No cells on the board</h2>
+                <p>Choose images, then select Count cells.</p>
+              </div>
+              <canvas
+                id="image"
+                aria-label="Selected microscopy image and detection markers"
+                hidden
+              ></canvas>
+            </div>
+            <p id="image-navigation-help">
+              Drag the image to pan when zoomed. Arrow keys also scroll.
+            </p>
+            <p id="image-view-status" aria-live="polite" aria-atomic="true">
+              Raw original RGB image.
+            </p>
+          </div>
+        </section>
+      </section>
+
+      <details id="advanced-settings" class="advanced-settings">
+        <summary>Advanced settings</summary>
         <section class="control-group tuning" aria-labelledby="tuning-step">
-          <p id="tuning-step" class="control-step">2. Tune and inspect</p>
+          <h2 id="tuning-step" class="control-step">Manual settings · Selected image only</h2>
+          <p class="batch-note">
+            Manual analysis and comparison affect the selected image only. Compare settings to
+            explore count changes, then inspect the markers; comparison does not measure accuracy.
+          </p>
           <div class="setting-fields">
             <label
               >Cell diameter (px)<input
@@ -102,185 +251,74 @@
                 value="21"
             /></label>
           </div>
+
           <div class="control-actions">
-            <button id="compare" type="button" data-workflow-only="single">Compare settings</button>
-            <button id="analyze-selected" type="button" data-workflow-only="single">
-              Analyze selected image
+            <button id="analyze-selected" type="button" disabled>
+              Count selected image with manual settings
             </button>
-            <button id="tune-selected" type="button" data-workflow-only="batch">
-              Tune selected image
-            </button>
+            <button id="compare" type="button" disabled>Compare settings on selected image</button>
           </div>
         </section>
-        <section
-          class="control-group batch"
-          aria-labelledby="batch-step"
-          data-workflow-only="batch"
-        >
-          <p id="batch-step" class="control-step">3. Count and export</p>
-          <p class="batch-note">Automatic comparison uses the selected image for tuning.</p>
-          <div class="control-actions">
-            <button id="analyze" type="button">Analyze images</button>
-            <button id="auto-tune-batch" type="button">Compare, then analyze batch</button>
-            <button id="download" type="button" disabled>Download CSV</button>
+        <section id="comparison" class="comparison" aria-labelledby="comparison-heading">
+          <h2 id="comparison-heading">Compare manual settings</h2>
+          <details class="comparison-details">
+            <summary>Design details and parameter ranges</summary>
+            <p id="comparison-summary">
+              Compare cell diameter, k, and threshold on the selected image only. Similar counts do
+              not establish accuracy; inspect the detections against the image.
+            </p>
+          </details>
+          <div class="comparison-feedback" aria-label="Comparison feedback">
+            <label id="comparison-progress-label" for="comparison-progress"
+              >Comparison progress</label
+            >
+            <progress
+              id="comparison-progress"
+              max="1"
+              value="0"
+              aria-describedby="comparison-status"
+            >
+              0 candidates complete
+            </progress>
+            <p id="comparison-status" aria-live="polite" aria-atomic="true">
+              Choose an image to prepare a comparison.
+            </p>
+            <button id="cancel-comparison" type="button" disabled>Cancel comparison</button>
+            <p id="comparison-recommendation"></p>
+            <p id="comparison-applied"></p>
+            <div class="comparison-actions">
+              <button id="inspect-applied" type="button" disabled>
+                Inspect applied detections
+              </button>
+            </div>
           </div>
-        </section>
-      </section>
-      <div class="status-line">
-        <p id="status" role="status">Choose a JPEG or PNG image.</p>
-        <button id="cancel" type="button" disabled hidden>Cancel</button>
-      </div>
-      <section class="workspace">
-        <div class="results-panel" data-workflow-only="batch">
-          <p class="eyebrow">THE BOUNTY BOARD</p>
-          <h2>Count ledger</h2>
-          <p id="batch-summary">No images selected.</p>
+          <div
+            id="comparison-highlights"
+            class="comparison-highlights"
+            hidden
+            aria-label="Comparison count statistics"
+          >
+            <p><span>Mean</span><strong id="comparison-mean">--</strong></p>
+            <p><span>Median</span><strong id="comparison-median">--</strong></p>
+            <p><span>Std deviation</span><strong id="comparison-sd">--</strong></p>
+          </div>
           <table>
             <thead>
               <tr>
-                <th>Image</th>
+                <th>Diameter</th>
+                <th>k</th>
+                <th>Threshold</th>
                 <th>Count</th>
-                <th>Status</th>
+                <th>Time</th>
+                <th>Design point</th>
+                <th>Decision</th>
               </tr>
             </thead>
-            <tbody id="rows"></tbody>
+            <tbody id="comparison-rows"></tbody>
+            <tfoot id="comparison-statistics" hidden></tfoot>
           </table>
-          <p id="ledger-empty">Your image counts will appear here.</p>
-        </div>
-        <div class="image-panel">
-          <div class="viewer-heading">
-            <div>
-              <p class="eyebrow">IMAGE INSPECTION</p>
-              <h2 id="selected-image-name" tabindex="-1">Image inspection</h2>
-              <p id="selected-image-details">Choose an image to inspect it.</p>
-            </div>
-            <p class="viewer-count">
-              <strong id="selected-image-count">--</strong
-              ><span id="selected-count-label">cells detected</span>
-            </p>
-          </div>
-          <div class="image-views" role="tablist" aria-label="Image view">
-            <button
-              id="raw-view"
-              type="button"
-              role="tab"
-              aria-selected="true"
-              aria-controls="image-view-panel"
-              tabindex="0"
-              data-view="raw"
-            >
-              Raw
-            </button>
-            <button
-              id="dog-view"
-              type="button"
-              role="tab"
-              aria-selected="false"
-              aria-controls="image-view-panel"
-              tabindex="-1"
-              data-view="dog"
-            >
-              DoG
-            </button>
-            <button
-              id="threshold-view"
-              type="button"
-              role="tab"
-              aria-selected="false"
-              aria-controls="image-view-panel"
-              tabindex="-1"
-              data-view="threshold"
-            >
-              Threshold
-            </button>
-          </div>
-          <div id="image-view-panel" role="tabpanel" aria-labelledby="raw-view">
-            <div class="image-tools">
-              <label><input id="markers" type="checkbox" checked /> Show detections</label
-              ><label
-                >Zoom <input id="zoom" type="range" min="25" max="6400" step="any" value="100" />
-                <span id="zoom-value">100%</span></label
-              ><button id="actual-pixels" type="button">Actual pixels</button
-              ><button id="fit-image" type="button">Fit image</button>
-            </div>
-            <div
-              id="canvas-wrap"
-              tabindex="0"
-              role="region"
-              aria-label="Image inspection viewport"
-              aria-describedby="image-navigation-help"
-            >
-              <div id="empty-image" class="empty-image">
-                <img src="assets/longhorn_skull.svg" alt="" width="260" height="140" />
-                <h2>No cells on the board</h2>
-                <p>Choose images, then compare settings to inspect the detections.</p>
-              </div>
-              <canvas id="image" aria-label="Selected image with detected cells" hidden></canvas>
-            </div>
-            <p id="image-navigation-help">
-              Drag the image to pan when zoomed. Arrow keys also scroll.
-            </p>
-            <p id="image-view-status" aria-live="polite" aria-atomic="true">
-              Raw original RGB image.
-            </p>
-          </div>
-        </div>
-      </section>
-      <section id="comparison" class="comparison" aria-labelledby="comparison-heading">
-        <h2 id="comparison-heading">Setting comparison</h2>
-        <details class="comparison-details" data-workflow-only="single">
-          <summary>Design details and parameter ranges</summary>
-          <p id="comparison-summary">
-            Select an image, then compare a 15-point central-composite design of cell-size, k, and
-            threshold settings.
-          </p>
-        </details>
-        <div class="comparison-feedback" aria-label="Comparison feedback">
-          <label id="comparison-progress-label" for="comparison-progress"
-            >Comparison progress</label
-          >
-          <progress id="comparison-progress" max="1" value="0" aria-describedby="comparison-status">
-            0 candidates complete
-          </progress>
-          <p id="comparison-status" aria-live="polite" aria-atomic="true">
-            Choose an image to prepare a comparison.
-          </p>
-          <button id="cancel-comparison" type="button" disabled>Cancel comparison</button>
-          <p id="comparison-recommendation"></p>
-          <p id="comparison-applied"></p>
-          <div class="comparison-actions">
-            <button id="inspect-applied" type="button" disabled>Inspect applied detections</button>
-            <button id="use-batch-settings" type="button" data-workflow-only="single" disabled>
-              Use settings for batch
-            </button>
-          </div>
-        </div>
-        <div
-          id="comparison-highlights"
-          class="comparison-highlights"
-          hidden
-          aria-label="Comparison count statistics"
-        >
-          <p><span>Mean</span><strong id="comparison-mean">--</strong></p>
-          <p><span>Median</span><strong id="comparison-median">--</strong></p>
-          <p><span>Std deviation</span><strong id="comparison-sd">--</strong></p>
-        </div>
-        <table data-workflow-only="single">
-          <thead>
-            <tr>
-              <th>Diameter</th>
-              <th>k</th>
-              <th>Threshold</th>
-              <th>Count</th>
-              <th>Time</th>
-              <th>Design point</th>
-              <th>Decision</th>
-            </tr>
-          </thead>
-          <tbody id="comparison-rows"></tbody>
-          <tfoot id="comparison-statistics" hidden></tfoot>
-        </table>
-      </section>
+        </section>
+      </details>
     </main>
     <script type="module" src="main.js"></script>
   </body>

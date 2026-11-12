@@ -8,7 +8,7 @@ import pytest
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "devel"))
 
-import devel.adaptive_blob_scoring as scoring
+import adaptive_blob_scoring as scoring
 import benchmark_adaptive_blobs
 
 

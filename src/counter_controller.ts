@@ -1,6 +1,6 @@
 import { elements } from "./counter_elements.js";
 import { chooseRepresentative } from "./choose_representative.js";
-import { comparisonDesign, type DesignPoint } from "./experiment_design.js";
+import { comparisonDesign, type DesignPoint, type DetectorSettings } from "./experiment_design.js";
 import {
   comparisonSettingsText,
   processedSettings,
@@ -10,20 +10,20 @@ import {
 import { formatCount } from "./count_statistics.js";
 import { createDetectorClient, decoded, pixels } from "./detector_client.js";
 import { createImageWorkspace, type ImageResult, type ImageSelection } from "./image_workspace.js";
+import type { SavedAnalysis } from "./analysis_types.js";
 import {
   createComparisonPanel,
   formatDuration,
   type Comparison,
   type ComparisonState,
 } from "./comparison_panel.js";
-import { createWorkflowModes } from "./workflow_modes.js";
 
 type CounterController = {
-  choose: () => void;
+  choose: () => Promise<void>;
+  tryExample: () => Promise<void>;
   analyze: () => Promise<void>;
   analyzeSelected: () => Promise<void>;
   compareSettings: () => Promise<boolean>;
-  autoTuneAndAnalyzeBatch: () => Promise<void>;
   cancel: () => void;
   redraw: () => void;
   settingsChanged: () => void;
@@ -36,10 +36,17 @@ export function createCounterController(): CounterController {
   const comparison: ComparisonState = { runs: [] };
   let active = false;
   let stopped = false;
+  let previewPending = 0;
   const client = createDetectorClient();
   const workspace = createImageWorkspace(selection, {
-    isActive: () => active,
-    isBatch: () => workflow.isBatch(),
+    isActive: () => active || previewPending > 0,
+    isBatch: () => selection.results.length > 1,
+    onPreviewBusy(busy) {
+      previewPending += busy ? 1 : -1;
+      updateControls();
+      workspace.render();
+      panel.render();
+    },
     onSelect(index) {
       const result = selection.results[index];
       if (result && index !== selection.selected)
@@ -49,19 +56,20 @@ export function createCounterController(): CounterController {
     setStatus,
   });
   const panel = createComparisonPanel(comparison, {
-    isActive: () => active,
+    isActive: () => active || previewPending > 0,
     onApply: applyComparisonResult,
   });
-  const workflow = createWorkflowModes(function modeChanged(): void {
-    workspace.updateZoom();
-    workspace.updateSummary();
-    if (selection.results.length === 0)
-      setStatus(
-        workflow.isBatch()
-          ? "Choose one or more JPEG or PNG images."
-          : "Choose a JPEG or PNG image.",
-      );
-  });
+
+  function manualAnalysis(input: DetectorSettings): SavedAnalysis {
+    return {
+      settings: { ...input },
+      mode: "manual",
+      method: "manual",
+      version: "dog-picker-1",
+      reviewReasons: [],
+      noSignal: false,
+    };
+  }
 
   function clearComparison(message: string): void {
     comparison.runs = [];
@@ -78,164 +86,190 @@ export function createCounterController(): CounterController {
 
   async function applyComparisonResult(run: Comparison): Promise<void> {
     const result = selection.results[selection.selected];
-    if (active || !result || comparison.file !== result.file || !run.centers) return;
-    let dimensions: { width: number; height: number } | undefined;
-    if (result.width === 0 || result.height === 0) {
-      const bitmap = await decoded(result.file);
-      dimensions = { width: bitmap.width, height: bitmap.height };
-      bitmap.close();
-    }
-    if (
-      active ||
-      selection.results[selection.selected] !== result ||
-      comparison.file !== result.file
-    )
+    if (active || previewPending > 0 || !result || comparison.file !== result.file || !run.centers)
       return;
-    elements.diameter.value = run.settings.diameter.toFixed(2);
-    elements.k.value = run.settings.k.toFixed(2);
-    elements.threshold.value = run.settings.threshold.toFixed(5);
-    result.centers = run.centers;
-    result.settings = run.settings;
-    result.error = undefined;
-    if (dimensions) {
-      result.width = dimensions.width;
-      result.height = dimensions.height;
+    stopped = false;
+    setRunning(true);
+    try {
+      if (result.width === 0 || result.height === 0) {
+        const bitmap = await decoded(result.file);
+        result.width = bitmap.width;
+        result.height = bitmap.height;
+        bitmap.close();
+      }
+      if (stopped) return;
+      elements.diameter.value = run.settings.diameter.toFixed(2);
+      elements.k.value = run.settings.k.toFixed(2);
+      elements.threshold.value = run.settings.threshold.toFixed(5);
+      result.centers = run.centers;
+      result.analysis = manualAnalysis(run.settings);
+      result.error = undefined;
+      result.status = "completed";
+      comparison.applied = run;
+      workspace.invalidate();
+      workspace.render();
+      await workspace.showPreview(result);
+      panel.applied(result);
+      setStatus(`Applied manual comparison settings to ${result.file.name}.`);
+    } catch (error: unknown) {
+      setStatus(error instanceof Error ? error.message : "Could not apply comparison settings.");
+    } finally {
+      setRunning(false);
     }
-    comparison.applied = run;
-    workspace.invalidate();
-    workspace.render();
-    panel.render();
-    await workspace.showPreview(result);
-    elements.download.disabled = false;
-    panel.applied(result, selection.results.length);
-    setStatus(`Applied comparison settings to ${result.file.name}.`);
   }
 
-  function setRunning(running: boolean): void {
-    active = running;
-    workflow.setBusy(running);
+  function updateControls(): void {
+    const busy = active || previewPending > 0;
     for (const control of [
       elements.images,
+      elements.chooseImages,
+      elements.chooseMoreImages,
+      elements.tryExample,
       elements.diameter,
       elements.k,
       elements.threshold,
       elements.comparisonRuns,
     ])
-      control.disabled = running;
-    for (const control of [
-      elements.analyze,
-      elements.analyzeSelected,
-      elements.compare,
-      elements.autoTuneBatch,
-    ])
-      control.disabled = running || selection.results.length === 0;
-    elements.cancel.disabled = !running;
-    elements.cancel.hidden = !running;
+      control.disabled = busy;
+    for (const control of [elements.analyze, elements.analyzeSelected, elements.compare])
+      control.disabled = busy || selection.results.length === 0;
+    elements.download.disabled = !selection.results.some(
+      (result) => result.analysis || result.status === "failed" || result.status === "cancelled",
+    );
+  }
+
+  function setRunning(running: boolean, cancellable = true): void {
+    active = running;
+    updateControls();
+    elements.cancel.disabled = !running || !cancellable || stopped;
+    elements.cancel.hidden = !running || !cancellable;
     workspace.setBusy(running);
     workspace.render();
     panel.render();
   }
 
   async function analyze(): Promise<void> {
-    const input = processedSettings();
-    if (!validate(input)) {
-      setStatus(settingsValidationMessage());
-      return;
-    }
-    if (selection.results.length === 0) {
-      setStatus("Choose images first.");
-      return;
-    }
-    for (const result of selection.results) {
-      delete result.centers;
-      delete result.error;
-      delete result.settings;
-      result.width = 0;
-      result.height = 0;
-    }
-    setRunning(true);
-    stopped = false;
-    client.start();
-    for (let index = 0; index < selection.results.length && !stopped; index += 1) {
-      const result = selection.results[index];
-      if (!result) continue;
-      selection.selected = index;
-      setStatus(`Analyzing ${index + 1} of ${selection.results.length}: ${result.file.name}`);
-      workspace.render();
-      try {
-        const image = await pixels(result.file);
-        if (stopped) break;
-        const reply = await client.process(index, image.rgba, image.width, image.height, input);
-        result.width = image.width;
-        result.height = image.height;
-        if (reply.error) result.error = reply.error;
-        else {
-          result.centers = reply.centers;
-          result.settings = input;
-        }
-        if (!stopped) await workspace.showPreview(result);
-      } catch (error: unknown) {
-        if (!stopped)
-          result.error = error instanceof Error ? error.message : "Image processing failed.";
-      }
-    }
-    client.finish();
-    setRunning(false);
-    elements.download.disabled =
-      selection.results.some(function hasResult(result: ImageResult): boolean {
-        return Boolean(result.centers || result.error);
-      }) === false;
-    workspace.render();
-    setStatus(stopped ? "Batch cancelled." : "Analysis complete.");
+    await runAnalysis(true);
   }
 
   async function analyzeSelected(): Promise<void> {
-    const input = processedSettings();
-    const result = selection.results[selection.selected];
-    if (!result) {
-      setStatus("Choose an image first.");
+    await runAnalysis(false);
+  }
+
+  async function runAnalysis(automatic: boolean): Promise<void> {
+    if (active || previewPending > 0) return;
+    if (selection.results.length === 0) {
+      setStatus("Choose one or more images first.");
       return;
     }
-    if (!validate(input)) {
-      setStatus(settingsValidationMessage());
+    // ASVS 2.2.1: automatic counting validates only the controls it actually uses.
+    const requested = {
+      diameter: Number(elements.diameter.value),
+      k: Number(elements.k.value),
+    };
+    const automaticInput = {
+      diameter: Number(requested.diameter.toFixed(2)),
+      k: Number(requested.k.toFixed(2)),
+    };
+    const manualInput = automatic ? undefined : processedSettings();
+    const validAutomatic =
+      Number.isFinite(requested.diameter) &&
+      requested.diameter >= 2 &&
+      requested.diameter <= 200 &&
+      Number.isFinite(requested.k) &&
+      requested.k >= 1.1 &&
+      requested.k <= 8;
+    if (automatic ? !validAutomatic : !validate(manualInput)) {
+      setStatus(
+        automatic
+          ? "Use a cell diameter of 2-200 px and k of 1.1-8 in Advanced settings."
+          : settingsValidationMessage(),
+      );
       return;
     }
-    setRunning(true);
+    if (automatic) {
+      elements.diameter.value = automaticInput.diameter.toFixed(2);
+      elements.k.value = automaticInput.k.toFixed(2);
+    }
+    const indices = automatic ? selection.results.map((_, index) => index) : [selection.selected];
+    const targets = indices.map((index) => selection.results[index]!);
+    clearComparison("Comparison feedback cleared because a new count was started.");
+    for (const result of targets) {
+      result.status = "waiting";
+      result.error = undefined;
+    }
     stopped = false;
-    client.start();
-    setStatus(`Analyzing selected image: ${result.file.name}`);
+    setRunning(true);
+    const scope = automatic ? "Automatic counting" : "Selected image manual counting";
     try {
-      const image = await pixels(result.file);
-      if (!stopped) {
-        const reply = await client.process(
-          selection.selected,
-          image.rgba,
-          image.width,
-          image.height,
-          input,
+      client.start();
+      for (let position = 0; position < indices.length && !stopped; position += 1) {
+        const index = indices[position]!;
+        const result = selection.results[index]!;
+        if (selection.selected !== index) workspace.clear();
+        selection.selected = index;
+        result.status = "working";
+        setStatus(
+          `${scope}: image ${position + 1} of ${indices.length}, ${result.file.name}. ${automatic ? "Adjusting this image's detection threshold." : "Using manual settings."}`,
         );
-        result.width = image.width;
-        result.height = image.height;
-        result.error = reply.error;
-        result.centers = reply.centers;
-        result.settings = reply.error ? undefined : input;
-        if (!reply.error) await workspace.showPreview(result);
+        workspace.render();
+        try {
+          const image = await pixels(result.file);
+          if (stopped) break;
+          const reply = automatic
+            ? await client.processAutomatic(
+                index,
+                image.rgba,
+                image.width,
+                image.height,
+                automaticInput,
+              )
+            : await client.process(index, image.rgba, image.width, image.height, manualInput!);
+          if (stopped) break;
+          if (!reply.ok) throw new Error(reply.error);
+          result.width = image.width;
+          result.height = image.height;
+          result.centers = reply.centers;
+          result.analysis =
+            reply.kind === "automatic" ? reply.analysis : manualAnalysis(manualInput!);
+          result.status = "completed";
+          workspace.invalidate();
+          workspace.render();
+          updateControls();
+          await workspace.showPreview(result);
+        } catch (error: unknown) {
+          if (stopped) break;
+          result.error = error instanceof Error ? error.message : "Image processing failed.";
+          result.status = "failed";
+          workspace.render();
+        }
       }
     } catch (error: unknown) {
-      if (!stopped)
-        result.error = error instanceof Error ? error.message : "Image processing failed.";
+      for (const result of targets) {
+        if (result.status === "waiting" || result.status === "working") {
+          result.status = "failed";
+          result.error = error instanceof Error ? error.message : "Counting could not start.";
+        }
+      }
+    } finally {
+      client.finish();
+      if (stopped)
+        for (const result of targets)
+          if (result.status === "waiting" || result.status === "working")
+            result.status = "cancelled";
+      setRunning(false);
+      const completed = targets.filter((result) => result.status === "completed").length;
+      const failed = targets.filter((result) => result.status === "failed").length;
+      const cancelled = targets.filter((result) => result.status === "cancelled").length;
+      setStatus(
+        `${scope} ${stopped ? "cancelled" : "finished"}: ${completed} counted, ${failed} failed${cancelled ? `, ${cancelled} cancelled` : ""}. ${stopped ? "Completed and previously saved results are retained." : "Inspect detection markers before using the counts."}`,
+      );
+      (automatic ? elements.analyze : elements.analyzeSelected).focus({ preventScroll: true });
     }
-    client.finish();
-    setRunning(false);
-    workspace.render();
-    elements.download.disabled =
-      selection.results.some(function hasResult(item: ImageResult): boolean {
-        return Boolean(item.centers || item.error);
-      }) === false;
-    setStatus(stopped ? "Selected image analysis cancelled." : "Selected image analysis complete.");
   }
 
   async function compareSettings(): Promise<boolean> {
+    if (active || previewPending > 0) return false;
     const input = processedSettings();
     const result = selection.results[selection.selected];
     if (!result) {
@@ -268,12 +302,12 @@ export function createCounterController(): CounterController {
     comparison.applied = undefined;
     comparison.file = result.file;
     panel.start(candidates, input, result.file);
-    setRunning(true);
     stopped = false;
-    client.start();
+    setRunning(true);
     const comparisonStarted = performance.now();
     let setupError: string | undefined;
     try {
+      client.start();
       const image = await pixels(result.file);
       for (let index = 0; index < candidates.length && !stopped; index += 1) {
         const candidate = candidates[index];
@@ -291,11 +325,12 @@ export function createCounterController(): CounterController {
             image.height,
             candidate,
           );
+          if (stopped) break;
           comparison.runs.push({
             settings: candidate,
             kind: candidate.kind,
-            centers: reply.centers,
-            error: reply.error,
+            centers: reply.ok ? reply.centers : undefined,
+            error: reply.ok ? undefined : reply.error,
             elapsed: performance.now() - started,
           });
         } catch (error: unknown) {
@@ -322,10 +357,12 @@ export function createCounterController(): CounterController {
       }
     } catch (error: unknown) {
       if (!stopped) setupError = error instanceof Error ? error.message : "Comparison failed.";
+    } finally {
+      client.finish();
+      setRunning(false);
+      panel.end();
+      elements.compare.focus({ preventScroll: true });
     }
-    client.finish();
-    setRunning(false);
-    panel.end();
     if (stopped) {
       panel.cancelled(candidates.length);
       setStatus("Comparison cancelled.");
@@ -375,31 +412,66 @@ export function createCounterController(): CounterController {
     return true;
   }
 
-  async function autoTuneAndAnalyzeBatch(): Promise<void> {
-    const compared = await compareSettings();
-    if (compared && !stopped && comparison.recommended) await analyze();
+  async function choose(): Promise<void> {
+    if (active || previewPending > 0) return;
+    const files = Array.from(elements.images.files ?? []);
+    if (files.length === 0) return;
+    elements.images.value = "";
+    await selectFiles(files);
   }
 
-  function choose(): void {
-    const files = Array.from(elements.images.files ?? []);
+  async function selectFiles(files: File[]): Promise<void> {
     workspace.clear();
     selection.results = files.map(function makeResult(file: File): ImageResult {
-      return { file, width: 0, height: 0 };
+      return { file, width: 0, height: 0, status: "waiting" };
     });
     selection.selected = 0;
     clearComparison("Comparison feedback cleared. Choose an image to prepare a comparison.");
-    elements.download.disabled = true;
-    setRunning(false);
-    const first = selection.results[0];
-    if (first) void workspace.showPreview(first);
+    elements.gate.hidden = true;
+    elements.counter.hidden = false;
+    elements.counter.dataset.workflow = files.length > 1 ? "batch" : "single";
+    document.querySelector<HTMLElement>("#workflow-help")!.textContent =
+      files.length > 1
+        ? `Batch: ${files.length} images. Count cells adjusts each image's threshold separately.`
+        : "Single image. Count cells adjusts the threshold from this image's pixels.";
+    elements.counterTitle.focus();
+    workspace.render();
+    updateControls();
     setStatus(
-      `${selection.results.length} image${selection.results.length === 1 ? "" : "s"} selected.`,
+      `${files.length} image${files.length === 1 ? "" : "s"} selected. Select Count cells to count ${files.length === 1 ? "this image" : "each image independently"}.`,
     );
+    const first = selection.results[0];
+    if (first) await workspace.showPreview(first);
+  }
+
+  async function tryExample(): Promise<void> {
+    if (active || previewPending > 0) return;
+    stopped = false;
+    setRunning(true, false);
+    elements.exampleStatus.textContent = "Loading the example image...";
+    try {
+      const response = await fetch(new URL("assets/example_a501.jpg", document.baseURI));
+      if (!response.ok) throw new Error(`Example image download failed (${response.status}).`);
+      const blob = await response.blob();
+      await selectFiles([new File([blob], "A501.jpg", { type: "image/jpeg" })]);
+      elements.exampleStatus.textContent = "";
+    } catch (error: unknown) {
+      const message = `${error instanceof Error ? error.message : "Example image could not load."} Select Try an example to retry, or choose your own images.`;
+      elements.exampleStatus.textContent = message;
+      setStatus(message);
+      return;
+    } finally {
+      setRunning(false);
+    }
+    await analyze();
   }
 
   function cancel(): void {
     if (active) {
       stopped = true;
+      elements.cancel.disabled = true;
+      elements.comparisonCancel.disabled = true;
+      setStatus("Cancelling. Completed and previously saved results will be retained.");
       client.cancel();
     }
   }
@@ -410,23 +482,25 @@ export function createCounterController(): CounterController {
   function settingsChanged(): void {
     workspace.updateSummary();
     const result = selection.results[selection.selected];
-    if (result && !result.settings) {
+    if (result && !result.analysis) {
       workspace.invalidate();
       void workspace.showPreview(result);
     }
   }
   function inspectApplied(): void {
-    workflow.select("single");
+    const advanced = document.querySelector<HTMLDetailsElement>("#advanced-settings")!;
+    advanced.open = false;
     elements.selectedImageName.focus({ preventScroll: true });
     elements.selectedImageName.scrollIntoView({ block: "start", behavior: "auto" });
   }
-  workflow.select("single");
+  updateControls();
+  workspace.render();
   return {
     choose,
+    tryExample,
     analyze,
     analyzeSelected,
     compareSettings,
-    autoTuneAndAnalyzeBatch,
     cancel,
     redraw,
     settingsChanged,

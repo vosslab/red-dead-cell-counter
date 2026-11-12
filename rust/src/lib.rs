@@ -5,8 +5,10 @@ use image::{ImageBuffer, Luma};
 use imageproc::filter::gaussian_blur_f32;
 use wasm_bindgen::prelude::*;
 
+mod automatic_threshold;
 mod blob_features;
 mod prepared_image;
+pub use automatic_threshold::{AUTOMATIC_VERSION, AutomaticDetection, ThresholdMethod};
 pub use blob_features::measure_blobs_core;
 pub use prepared_image::PreparedImage;
 

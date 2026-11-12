@@ -8,7 +8,7 @@ frozen retention rule. M1-M13 are complete; conditional M14-M17 are N/A. M18 is 
 The durable evidence is
 [ADAPTIVE_BLOB_EXPERIMENT.md](../../ADAPTIVE_BLOB_EXPERIMENT.md), with receipts in
 [adaptive_blob_processing_progress.md](adaptive_blob_processing_progress.md). The broader
-[automatic_image_counting_plan.md](automatic_image_counting_plan.md) remains open.
+[automatic_image_counting_plan.md](../../archive/automatic_image_counting_plan.md) remains open.
 
 ## Purpose
 
@@ -19,7 +19,7 @@ are used only after inference to score results. They are uncertain calibration t
 ground truth or confidence intervals.
 
 This is one authorized workstream under the broader
-[automatic_image_counting_plan.md](automatic_image_counting_plan.md). It has no human approval gates.
+[automatic_image_counting_plan.md](../../archive/automatic_image_counting_plan.md). It has no human approval gates.
 
 ## Frozen inputs and baseline
 

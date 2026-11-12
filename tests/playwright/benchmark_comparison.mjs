@@ -87,19 +87,42 @@ async function main() {
           requestAnimationFrame(tick);
         });
         await page.goto(baseUrl);
-        await page.getByRole("button", { name: "Enter saloon" }).click();
-        await page.getByLabel(/^Choose image$/).setInputFiles(`IMAGES/${imageName}`);
+        await page.locator("#images").setInputFiles(`IMAGES/${imageName}`);
+        await page.getByRole("button", { name: "Count cells", exact: true }).click();
+        await page.waitForFunction(
+          () => !document.querySelector("#analyze")?.hasAttribute("disabled"),
+          undefined,
+          { timeout: 180_000 },
+        );
+        await page.waitForFunction(
+          () => document.querySelector("#rows tr")?.textContent?.includes("Done"),
+          undefined,
+          { timeout: 180_000 },
+        );
+        await page.locator("#advanced-settings > summary").click();
+        await page.evaluate(() => {
+          Object.assign(window.__comparisonBenchmark, {
+            workerMessages: 0,
+            rgbaBytes: 0,
+            raf: [],
+            longTasks: [],
+          });
+        });
         const started = performance.now();
-        await page.getByRole("button", { name: "Compare settings", exact: true }).click();
+        await page
+          .getByRole("button", { name: "Compare settings on selected image", exact: true })
+          .click();
         await page.locator("#comparison-progress").waitFor({ state: "visible" });
         await page.waitForFunction(
           () => document.querySelector("#comparison-progress")?.getAttribute("value") === "21",
           undefined,
           { timeout: 180_000 },
         );
-        await page.getByRole("button", { name: "Compare settings", exact: true }).waitFor({
-          state: "visible",
-        });
+        await page
+          .getByRole("button", { name: "Compare settings on selected image", exact: true })
+          .waitFor({
+            state: "visible",
+          });
         await page.waitForFunction(
           () => !document.querySelector("#compare")?.hasAttribute("disabled"),
           undefined,

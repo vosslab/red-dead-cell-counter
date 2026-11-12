@@ -1,5 +1,65 @@
 # Verification
 
+## Automatic image counting
+
+The eight-image comparison selected one global binary Otsu method for automatic
+counting. The method is provisional because its per-image quality classifications
+do not meet the fixed 0.10 baseline; fixed 0.12 is not a runtime fallback. Under
+the `[H/1.1, H/0.9]` classification interval, automatic Otsu has 3/8 images
+outside, fixed 0.10 has 4/8, and fixed 0.12 has 0/8. This is calibration-corpus evidence, not
+independent biological validation. The independent specification review is
+`automatic_threshold_selection_review`; native quality acceptance covers 17 Rust
+tests (15 unit and 2 integration).
+
+The final canonical Pages build passed in 1.2 seconds at 14:13:50. Wasm is
+57,536 raw / 25,643 gzip bytes, SHA-256
+`a56984447184a7a2445e0b8eec7848a5855bf5b1fa35afff2d3925e71bfbdb59`; main JS is
+35,894 / 11,616 bytes and worker JS is 7,778 / 2,819 bytes. The ten-file sorted dist hash manifest digest is
+`afa33741db240b8f73e345cef49e78094a8df8d40324c4abb82f14a9ae4cb312` (636,974 total
+raw bytes); full manifest: `/private/tmp/automatic_dist_manifest_final.log`.
+Build log: `/private/tmp/automatic_pages_build_final.log`. The six DOE checks in
+`./check_codebase.sh` pass. Fresh full pytest passed 1,155 cases in 2.22 seconds
+(`automatic_rebuild_final`); a focused 141-case repository run also passed after
+a one-line import-boundary repair.
+
+Native/Wasm boundary quality re-review accepts nine real-Wasm cases plus mocked-client
+cases. Built-browser parity matched all eight real-image center arrays and selected
+cutoffs: A101 326, A501 291, B301 238, C601 264, E401 480, F201 992, H1001 672,
+and H501 2,456.
+The 17/17 browser regression passed in 18.4 seconds and checked all 5,719 center pairs.
+A heterogeneous browser stress run repeated the eight originals twelve times and
+completed all 96 rows. Counts, actual five-place cutoffs, method/review status, and
+completion state match native results. Start-to-CSV took 70,812 ms. The run is
+throughput evidence, not 96 independent samples. Receipts:
+`/private/tmp/automatic_stress_final.log`,
+`/private/tmp/automatic_stress_results.json`, and
+`/private/tmp/automatic_stress_96.csv`. The first harness attempt exceeded
+Playwright's 50 MB input limit before the app ran; the corrected repeated-file-path
+harness passed.
+
+The frontend specification report found a queued-status issue and the fix passed fresh
+specification re-review. Accessibility review measured 4.3906:1 hover contrast on the
+primary button at 320 px before correction. A CSS-only color correction was built in
+READY3. Build log: `/private/tmp/automatic_pages_build_release.log`;
+source CSS SHA-256 `efe2d1472201f3e366c277f4fc3031c50a00b20630196d44a2cc93cc1e87c6cd`.
+JS and Wasm are unchanged, so the 17 Rust tests remain applicable.
+After the CSS change, all five quality-90 real-image WebP captures were refreshed and
+inspected as clear and readable. The 21-run comparison completed 21/21 with mean 347.7,
+median 338.0, and population SD 95.2; A501 automatic count was 291 and marked
+provisional. Final build log: `/private/tmp/automatic_pages_build_release.log`; final
+dist manifest `/private/tmp/automatic_dist_manifest_css733.log`, digest
+`66078346ad7a563e51fae03f95d041951f5fcf01f0a5e0b30568c376ff93acb6`.
+The independent final accessibility review accepts: nine Axe scans found zero
+violations across 12 states at widths 320, 480, 768, and 1920 px, with no overflow.
+Primary-button hover contrast is 5.1536:1, 5.4711:1, 5.5048:1, and 5.4336:1 at those
+widths. Keyboard, recovery, CSV, and the 15-selection DOE workflow pass. A minor
+Advanced completion-focus issue is documented as non-blocking. The historical
+comparison-feedback documentation fix also passes 57 link checks. Final integration
+acceptance is recorded in [the independent integration review](active_plans/reports/automatic_integration_review.md),
+which found no blockers; five local links and ASCII compliance passed. These receipts
+establish engineering behavior on calibration images; they do not establish independent
+biological accuracy, student usability, or live Pages publication.
+
 ## Adaptive blob experiment
 
 On 2026-11-12, complete the six-policy research experiment described in
@@ -122,7 +182,7 @@ The failed snapshots showed the saloon button still disabled before main.js enab
 that startup path never invokes the detector worker. The parallel serving/startup cause
 was not conclusively isolated, so this receipt does not claim a clean parallel run.
 
-The [automatic counting plan](active_plans/active/automatic_image_counting_plan.md)
+The [automatic counting plan](archive/automatic_image_counting_plan.md)
 contains 27 atomic milestones with one owner each and acyclic dependencies. It separates
 image-specific and regional thresholds, recursive clumps, multi-scale DoG, watershed,
 and one conditional hybrid comparison. Additional annotations are a validation gap,
@@ -402,6 +462,10 @@ The supplied Western GUI reference images informed the requested materials and
 motifs; the delivered geometry is original and uses no stock artwork or remote fonts.
 
 ## Completed checks
+
+- After plan archival, full pytest passes 1,155 checks; final static gate passes both TypeScript
+  checks, ESLint, Prettier and six DOE tests. Test-discovery ordering fix is covered by one
+  focused regression; SPEC and QUALITY reviews accept.
 
 - Repository type checking, ESLint, and formatting gate passed.
 - Three native Rust tests and Clippy with warnings denied passed.
