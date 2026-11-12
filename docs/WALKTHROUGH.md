@@ -27,9 +27,10 @@ wait for **Count cells**; choosing them alone does not start a count.
 
 [<img src="screenshots/workflow_count.webp" width="720" alt="Two images selected with Count cells ready and Download CSV unavailable">](screenshots/workflow_count.webp)
 
-This screen has two files selected and waiting. Select **Count cells** to process
-them in sequence. You do not need to choose a mode or tune parameters first:
-the tool fits a separate threshold to each image.
+This example screen has two files selected and waiting. Select **Count cells** to
+process your own file or set; multiple files run in sequence. If you used **Try an
+example**, counting has already finished, so continue to inspection. You do not need
+to choose a mode or tune parameters first: each image gets its own threshold.
 
 When counting finishes, the board shows counts and processing status. Select a
 filename to open that image's saved result. Its count, actual settings, and review

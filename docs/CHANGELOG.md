@@ -88,6 +88,13 @@
 
 ### Developer Tests and Notes
 
+- For the visual documentation refresh, inspected three focused workflow crops and
+  refreshed eight interface assets from the local build. Checked 77 local links and
+  image targets across six edited documents, ASCII source, screenshot sentinels,
+  and the 208-character plain opening. README displays its three crops at 520 px;
+  walkthrough views use 720-760 px. The user owns testing for this refresh, so no
+  test suites were run. Local captures do not verify the deployed revision.
+
 - Recaptured all five managed WebP screenshots at quality 90 from the corrected local
   production build. Verified the real A501 example (291 cells, cutoff 0.26860), H501
   (2,456, cutoff 0.26307), per-row automatic CSV metadata, 21 successful Advanced

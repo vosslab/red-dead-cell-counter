@@ -22,13 +22,15 @@ The saloon, wanted poster, and wooden bounty board keep the lab work on the fron
 
 [<img src="docs/screenshots/workflow_choose.webp" width="520" alt="Western saloon entrance with Choose images and Try an example actions">](docs/screenshots/workflow_choose.webp)
 
-Start with your JPEG/PNG files, or select **Try an example** for a real microscope field.
+Choose your JPEG/PNG files, or select **Try an example** to count a real field
+immediately and skip to inspection.
 
 ### 2. Count the selected set
 
 [<img src="docs/screenshots/workflow_count.webp" width="520" alt="Two images selected with Count cells ready and Download CSV unavailable">](docs/screenshots/workflow_count.webp)
 
-For your own files, select **Count cells**. Each image receives its own automatic cutoff.
+This example has two files selected. For your own file or set, select **Count cells**;
+each image receives its own automatic cutoff.
 
 ### 3. Inspect, then save
 

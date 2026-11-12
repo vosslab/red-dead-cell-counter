@@ -30,7 +30,7 @@ count can differ from that first automatic count.
 
 [<img src="screenshots/saloon.webp" width="320" alt="Full Western saloon entrance with image selection and example actions">](screenshots/saloon.webp)
 
-The full entrance preserves the saloon scene around the focused Choose image.
+The full entrance preserves the saloon scene around the focused entrance crop.
 
 [<img src="screenshots/counter.webp" width="320" alt="Full A501 automatic workbench with bounty board, actual settings, and image viewer">](screenshots/counter.webp)
 
